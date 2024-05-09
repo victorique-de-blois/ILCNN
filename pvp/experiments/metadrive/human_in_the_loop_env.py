@@ -32,7 +32,6 @@ HUMAN_IN_THE_LOOP_ENV_CONFIG = {
         "show_line_to_dest": True,  # Show the line to the destination.
         "show_line_to_navi_mark": True,  # Show the line to next navigation checkpoint.
     },
-
     "horizon": 1500,
 }
 

@@ -17,15 +17,15 @@ from pvp.sb3.td3.td3 import TD3
 
 from pvp.sb3.ppo.policies import ActorCriticPolicy
 
-class PVPTD3CPLPolicy(ActorCriticPolicy):
 
+class PVPTD3CPLPolicy(ActorCriticPolicy):
     def __init__(self, obss, acts, *args, **kwargs):
         for k in ["fixed_log_std", "log_std_init"]:
             if k in kwargs:
                 kwargs.pop(k)
 
         self.num_bins = 13
-        total_num_bins = self.num_bins ** acts.shape[0]
+        total_num_bins = self.num_bins**acts.shape[0]
 
         self.raw_action_space = acts
 
@@ -35,9 +35,8 @@ class PVPTD3CPLPolicy(ActorCriticPolicy):
         self.num_axes = len(acts.low)
 
         # Compute the bin sizes for each axis and prepare the flattened lookup table
-        self.lookup_table = torch.zeros(self.num_bins ** self.num_axes, self.num_axes)
-        ranges = [torch.linspace(acts.low[axis], acts.high[axis], self.num_bins)
-                  for axis in range(self.num_axes)]
+        self.lookup_table = torch.zeros(self.num_bins**self.num_axes, self.num_axes)
+        ranges = [torch.linspace(acts.low[axis], acts.high[axis], self.num_bins) for axis in range(self.num_axes)]
 
         grid = torch.meshgrid(*ranges, indexing='ij')
         # Flatten the grid and store it in the lookup table
@@ -74,10 +73,12 @@ class PVPTD3CPLPolicy(ActorCriticPolicy):
 
 logger = logging.getLogger(__name__)
 
+
 def unwrap(tensor, mask):
     new = tensor.new_zeros(mask.shape)
     new[mask] = tensor
     return new
+
 
 def log_probs_to_advantages(log_probs, alpha, remove_sum=False):
     if remove_sum:
@@ -132,37 +133,17 @@ class PVPTD3CPL(TD3):
             self.intervention_start_stop_td = True
 
         self.extra_config = {}
-        for k in [
-            "use_chunk_adv",
-            "add_loss_5",
-            "add_loss_5_inverse",
-            "prioritized_buffer",
-            "mask_same_actions",
-            "remove_loss_1",
-            "remove_loss_3",
-            "remove_loss_6",
-            "training_deterministic",
-            "use_target_policy",
-            "use_target_policy_only_overwrite_takeover",
-            "add_bc_loss",
-            "add_bc_loss_only_interventions"
-        ]:
+        for k in ["use_chunk_adv", "add_loss_5", "add_loss_5_inverse", "prioritized_buffer", "mask_same_actions",
+                  "remove_loss_1", "remove_loss_3", "remove_loss_6", "training_deterministic", "use_target_policy",
+                  "use_target_policy_only_overwrite_takeover", "add_bc_loss", "add_bc_loss_only_interventions"]:
             if k in kwargs:
                 v = kwargs.pop(k)
                 assert v in ["True", "False", True, False]
                 if isinstance(v, str):
                     v = v == "True"
                 self.extra_config[k] = v
-        for k in [
-            "num_comparisons",
-            "num_steps_per_chunk",
-            "cpl_bias",
-            "top_factor",
-            "last_ratio",
-            "max_comparisons",
-            "hard_reset",
-            "bc_loss_weight"
-        ]:
+        for k in ["num_comparisons", "num_steps_per_chunk", "cpl_bias", "top_factor", "last_ratio", "max_comparisons",
+                  "hard_reset", "bc_loss_weight"]:
             if k in kwargs:
                 v = kwargs.pop(k)
                 self.extra_config[k] = v
@@ -254,45 +235,77 @@ class PVPTD3CPL(TD3):
         for i, ep in enumerate(replay_data_agent):
             if len(ep.observations) - num_steps_per_chunk >= 0:
                 for s in range(len(ep.observations) - num_steps_per_chunk):
-                    new_obs.append(ep.observations[s: s + num_steps_per_chunk])
-                    new_action_behaviors.append(ep.actions_behavior[s: s + num_steps_per_chunk])
-                    new_action_novices.append(ep.actions_novice[s: s + num_steps_per_chunk])
+                    new_obs.append(ep.observations[s:s + num_steps_per_chunk])
+                    new_action_behaviors.append(ep.actions_behavior[s:s + num_steps_per_chunk])
+                    new_action_novices.append(ep.actions_novice[s:s + num_steps_per_chunk])
 
                     new_valid_ep.append(i)
                     new_valid_step.append(s)
-                    new_valid_count.append(ep.interventions[s: s + num_steps_per_chunk].sum())
+                    new_valid_count.append(ep.interventions[s:s + num_steps_per_chunk].sum())
                     new_valid_mask.append(ep.interventions.new_ones(num_steps_per_chunk))
 
-                    intervention = ep.interventions[s: s + num_steps_per_chunk]
+                    intervention = ep.interventions[s:s + num_steps_per_chunk]
                     first_intervention = intervention.squeeze(-1).argmax()
                     interventions.append(intervention)
                     is_before_first_intervention.append(
                         torch.nn.functional.pad(
-                            intervention.new_ones(first_intervention + 1), pad=(0, num_steps_per_chunk - first_intervention - 1)
+                            intervention.new_ones(first_intervention + 1),
+                            pad=(0, num_steps_per_chunk - first_intervention - 1)
                         )
                     )
 
             else:
                 # Need to pad the data
-                new_obs.append(torch.cat([ep.observations, ep.observations.new_zeros(
-                    [num_steps_per_chunk - len(ep.observations), *ep.observations.shape[1:]])], dim=0))
-                new_action_behaviors.append(torch.cat([ep.actions_behavior, ep.actions_behavior.new_zeros(
-                    [num_steps_per_chunk - len(ep.actions_behavior), *ep.actions_behavior.shape[1:]])], dim=0))
-                new_action_novices.append(torch.cat([ep.actions_novice, ep.actions_novice.new_zeros(
-                    [num_steps_per_chunk - len(ep.actions_novice), *ep.actions_novice.shape[1:]])], dim=0))
+                new_obs.append(
+                    torch.cat(
+                        [
+                            ep.observations,
+                            ep.observations.new_zeros(
+                                [num_steps_per_chunk - len(ep.observations), *ep.observations.shape[1:]]
+                            )
+                        ],
+                        dim=0
+                    )
+                )
+                new_action_behaviors.append(
+                    torch.cat(
+                        [
+                            ep.actions_behavior,
+                            ep.actions_behavior.new_zeros(
+                                [num_steps_per_chunk - len(ep.actions_behavior), *ep.actions_behavior.shape[1:]]
+                            )
+                        ],
+                        dim=0
+                    )
+                )
+                new_action_novices.append(
+                    torch.cat(
+                        [
+                            ep.actions_novice,
+                            ep.actions_novice.new_zeros(
+                                [num_steps_per_chunk - len(ep.actions_novice), *ep.actions_novice.shape[1:]]
+                            )
+                        ],
+                        dim=0
+                    )
+                )
 
                 new_valid_ep.append(i)
                 new_valid_step.append(0)
                 new_valid_count.append(ep.interventions.sum())
-                new_valid_mask.append(torch.cat([
-                    ep.interventions.new_ones(len(ep.interventions)),
-                    ep.interventions.new_zeros(num_steps_per_chunk - len(ep.interventions))
-                ]))
+                new_valid_mask.append(
+                    torch.cat(
+                        [
+                            ep.interventions.new_ones(len(ep.interventions)),
+                            ep.interventions.new_zeros(num_steps_per_chunk - len(ep.interventions))
+                        ]
+                    )
+                )
 
-                intervention = torch.cat([
-                    ep.interventions,
-                    ep.interventions.new_zeros(num_steps_per_chunk - len(ep.interventions))
-                ])
+                intervention = torch.cat(
+                    [ep.interventions,
+                     ep.interventions.new_zeros(num_steps_per_chunk - len(ep.interventions))]
+                )
                 first_intervention = intervention.squeeze(-1).argmax()
                 interventions.append(intervention)
                 is_before_first_intervention.append(
@@ -380,22 +393,50 @@ class PVPTD3CPL(TD3):
                 full_action_novices.append(ep.actions_novice[:full_num_steps_per_chunk])
                 full_interventions.append(ep.interventions.flatten()[:full_num_steps_per_chunk])
             else:
-                full_obs.append(torch.cat([ep.observations, ep.observations.new_zeros(
-                    [full_num_steps_per_chunk - len(ep.observations), *ep.observations.shape[1:]])], dim=0))
-                full_action_behaviors.append(torch.cat([ep.actions_behavior, ep.actions_behavior.new_zeros(
-                    [full_num_steps_per_chunk - len(ep.actions_behavior), *ep.actions_behavior.shape[1:]])], dim=0))
-                full_action_novices.append(torch.cat([ep.actions_novice, ep.actions_novice.new_zeros(
-                    [full_num_steps_per_chunk - len(ep.actions_novice), *ep.actions_novice.shape[1:]])], dim=0))
-                full_intervention = torch.cat([
-                    ep.interventions.flatten(),
-                    ep.interventions.new_zeros(full_num_steps_per_chunk - len(ep.interventions))
-                ])
+                full_obs.append(
+                    torch.cat(
+                        [
+                            ep.observations,
+                            ep.observations.new_zeros(
+                                [full_num_steps_per_chunk - len(ep.observations), *ep.observations.shape[1:]]
+                            )
+                        ],
+                        dim=0
+                    )
+                )
+                full_action_behaviors.append(
+                    torch.cat(
+                        [
+                            ep.actions_behavior,
+                            ep.actions_behavior.new_zeros(
+                                [full_num_steps_per_chunk - len(ep.actions_behavior), *ep.actions_behavior.shape[1:]]
+                            )
+                        ],
+                        dim=0
+                    )
+                )
+                full_action_novices.append(
+                    torch.cat(
+                        [
+                            ep.actions_novice,
+                            ep.actions_novice.new_zeros(
+                                [full_num_steps_per_chunk - len(ep.actions_novice), *ep.actions_novice.shape[1:]]
+                            )
+                        ],
+                        dim=0
+                    )
+                )
+                full_intervention = torch.cat(
+                    [
+                        ep.interventions.flatten(),
+                        ep.interventions.new_zeros(full_num_steps_per_chunk - len(ep.interventions))
+                    ]
+                )
                 full_interventions.append(full_intervention)
         full_obs = torch.stack(full_obs, dim=0)
         full_action_behaviors = torch.stack(full_action_behaviors, dim=0)
         full_action_novices = torch.stack(full_action_novices, dim=0)
         full_interventions = torch.stack(full_interventions).bool()
-
 
         if self.extra_config["hard_reset"] > 0:
             if (self.since_last_reset - self.extra_config["hard_reset"]) >= 0:
@@ -405,8 +446,6 @@ class PVPTD3CPL(TD3):
 
                 # TODO: Policy target??
                 # self.policy_target.reset()
-
-
 
         for step in range(gradient_steps):
 
@@ -460,11 +499,11 @@ class PVPTD3CPL(TD3):
 
             # Compute advantage for a+, b+, a-, b- trajectory:
 
-
             if self.extra_config["use_target_policy"]:
                 m = valid_mask[a_ind].flatten()
                 _, log_probs_tmp1, entropy1 = self.policy.evaluate_actions(
-                    a_obs.flatten(0, 1)[m], a_actions_behavior.flatten(0, 1)[m]
+                    a_obs.flatten(0, 1)[m],
+                    a_actions_behavior.flatten(0, 1)[m]
                 )
                 lp_a_pos = log_probs_tmp1.new_zeros(m.shape[0])
                 lp_a_pos[m] = log_probs_tmp1
@@ -475,15 +514,14 @@ class PVPTD3CPL(TD3):
                 if self.extra_config["use_target_policy_only_overwrite_takeover"]:
                     int_mask = a_int.flatten(0, 1)
                     a_actions_novice = torch.where(
-                        (int_mask == 1)[:, None], a_actions_novice_target, a_actions_novice.flatten(0, 1)[m]
+                        (int_mask == 1)[:, None], a_actions_novice_target,
+                        a_actions_novice.flatten(0, 1)[m]
                     )
 
                 else:
                     a_actions_novice = a_actions_novice_target
 
-                _, log_probs_tmp2, entropy2 = self.policy.evaluate_actions(
-                    a_obs.flatten(0, 1)[m], a_actions_novice
-                )
+                _, log_probs_tmp2, entropy2 = self.policy.evaluate_actions(a_obs.flatten(0, 1)[m], a_actions_novice)
                 lp_a_neg = log_probs_tmp2.new_zeros(m.shape[0])
                 lp_a_neg[m] = log_probs_tmp2
 
@@ -494,10 +532,12 @@ class PVPTD3CPL(TD3):
                     a_obs.flatten(0, 1),
                     a_obs.flatten(0, 1),
                 ], dim=0)
-                flatten_actions = torch.cat([
-                    a_actions_behavior.flatten(0, 1),
-                    a_actions_novice.flatten(0, 1),
-                ], dim=0)
+                flatten_actions = torch.cat(
+                    [
+                        a_actions_behavior.flatten(0, 1),
+                        a_actions_novice.flatten(0, 1),
+                    ], dim=0
+                )
                 flatten_valid_mask = torch.cat([
                     valid_mask[a_ind].flatten(),
                     valid_mask[a_ind].flatten(),
@@ -521,20 +561,25 @@ class PVPTD3CPL(TD3):
             #      ], dim=0
             # )
 
-            adv_a_pos = log_probs_to_advantages(lp_a_pos.reshape(num_comparisons, num_steps_per_chunk), alpha, remove_sum=False)
-            adv_a_neg = log_probs_to_advantages(lp_a_neg.reshape(num_comparisons, num_steps_per_chunk), alpha, remove_sum=False)
+            adv_a_pos = log_probs_to_advantages(
+                lp_a_pos.reshape(num_comparisons, num_steps_per_chunk), alpha, remove_sum=False
+            )
+            adv_a_neg = log_probs_to_advantages(
+                lp_a_neg.reshape(num_comparisons, num_steps_per_chunk), alpha, remove_sum=False
+            )
 
             # TODO: Remove debug code:
-            adv_a_pos2 = log_probs_to_advantages(lp_a_pos.reshape(num_comparisons, num_steps_per_chunk), alpha,
-                                                 remove_sum=True)
-            adv_a_neg2 = log_probs_to_advantages(lp_a_neg.reshape(num_comparisons, num_steps_per_chunk), alpha,
-                                                 remove_sum=True)
+            adv_a_pos2 = log_probs_to_advantages(
+                lp_a_pos.reshape(num_comparisons, num_steps_per_chunk), alpha, remove_sum=True
+            )
+            adv_a_neg2 = log_probs_to_advantages(
+                lp_a_neg.reshape(num_comparisons, num_steps_per_chunk), alpha, remove_sum=True
+            )
             nppos = adv_a_pos2.cpu().detach().numpy()
             npneg = adv_a_neg2.cpu().detach().numpy()
             inte = interventions[a_ind].cpu().detach().numpy()
             nppos2 = nppos * inte
             npneg2 = npneg * inte
-
 
             if self.extra_config["add_bc_loss"]:
                 # assert self.extra_config["remove_loss_1"]
@@ -550,8 +595,6 @@ class PVPTD3CPL(TD3):
 
                 cpl_losses.append(bc_loss)
 
-
-
             zeros_label = torch.zeros_like(adv_a_pos)
             if not self.extra_config["remove_loss_1"]:
                 # Case 1: a+ > a-
@@ -564,19 +607,25 @@ class PVPTD3CPL(TD3):
                 #     cpl_loss_1, accuracy_1 = biased_bce_with_logits(adv_a_pos, adv_a_neg, zeros_label, bias=cpl_bias, shuffle=False)
 
                 if self.extra_config["num_comparisons"] < 0:
-                    loss1_pos_lp = self.policy.evaluate_actions(rl_obs[rl_interventions], rl_actions[rl_interventions])[1]
-                    loss1_neg_lp = self.policy.evaluate_actions(rl_obs[rl_interventions], rl_actions_novice[rl_interventions])[1]
+                    loss1_pos_lp = self.policy.evaluate_actions(rl_obs[rl_interventions],
+                                                                rl_actions[rl_interventions])[1]
+                    loss1_neg_lp = self.policy.evaluate_actions(
+                        rl_obs[rl_interventions], rl_actions_novice[rl_interventions]
+                    )[1]
                 else:
                     rl_ind = torch.randint(
-                        len(rl_obs[rl_interventions]), size=(self.extra_config["num_comparisons"],)
+                        len(rl_obs[rl_interventions]), size=(self.extra_config["num_comparisons"], )
                     ).to(no_human_involved_indices.device)
-                    loss1_pos_lp = self.policy.evaluate_actions(rl_obs[rl_interventions][rl_ind], rl_actions[rl_interventions][rl_ind])[1]
-                    loss1_neg_lp = self.policy.evaluate_actions(rl_obs[rl_interventions][rl_ind], rl_actions_novice[rl_interventions][rl_ind])[1]
+                    loss1_pos_lp = self.policy.evaluate_actions(
+                        rl_obs[rl_interventions][rl_ind], rl_actions[rl_interventions][rl_ind]
+                    )[1]
+                    loss1_neg_lp = self.policy.evaluate_actions(
+                        rl_obs[rl_interventions][rl_ind], rl_actions_novice[rl_interventions][rl_ind]
+                    )[1]
 
                 loss1_adv_pos = loss1_pos_lp * alpha
                 loss1_adv_neg = loss1_neg_lp * alpha
                 loss1_cpl_bias = 1.0
-
 
                 # loss1_lp_pos = unwrap(
                 #     self.policy.evaluate_actions(full_obs[full_interventions], full_action_behaviors[full_interventions])[1],
@@ -591,7 +640,10 @@ class PVPTD3CPL(TD3):
                 # loss1_adv_neg = log_probs_to_advantages(loss1_lp_neg, alpha)
 
                 cpl_loss_1, accuracy_1 = biased_bce_with_logits(
-                    loss1_adv_pos, loss1_adv_neg, torch.zeros_like(loss1_adv_neg), bias=loss1_cpl_bias,
+                    loss1_adv_pos,
+                    loss1_adv_neg,
+                    torch.zeros_like(loss1_adv_neg),
+                    bias=loss1_cpl_bias,
                 )
 
                 cpl_losses.append(cpl_loss_1)
@@ -607,7 +659,9 @@ class PVPTD3CPL(TD3):
             # Case 3: a+ > b-
             if not self.extra_config["remove_loss_3"]:
                 shuffled_indices = torch.randperm(num_comparisons)
-                cpl_loss_3, accuracy_3 = biased_bce_with_logits(adv_a_pos, adv_a_neg[shuffled_indices], zeros_label, bias=cpl_bias, shuffle=False)
+                cpl_loss_3, accuracy_3 = biased_bce_with_logits(
+                    adv_a_pos, adv_a_neg[shuffled_indices], zeros_label, bias=cpl_bias, shuffle=False
+                )
                 cpl_losses.append(cpl_loss_3)
                 accuracies.append(accuracy_3)
                 stat_recorder["cpl_loss_3"].append(cpl_loss_3.item())
@@ -627,7 +681,8 @@ class PVPTD3CPL(TD3):
                 label5[a_count == b_count] = 0.5
 
                 cpl_loss_5, accuracy_5 = biased_bce_with_logits(
-                    adv_a_pos, adv_a_pos[shuffled_indices5], label5, bias=cpl_bias, shuffle=False)
+                    adv_a_pos, adv_a_pos[shuffled_indices5], label5, bias=cpl_bias, shuffle=False
+                )
 
                 cpl_losses.append(cpl_loss_5)
                 accuracies.append(accuracy_5)
@@ -638,7 +693,7 @@ class PVPTD3CPL(TD3):
             if len(no_human_involved_indices) > 0 and (not self.extra_config["remove_loss_6"]):
                 # Make the data from agent's exploration equally sized as human involved data.
                 c_ind = torch.randint(
-                    len(no_human_involved_indices), size=(num_comparisons,)
+                    len(no_human_involved_indices), size=(num_comparisons, )
                 ).to(no_human_involved_indices.device)
                 num_c_comparisons = num_comparisons
 
@@ -654,13 +709,12 @@ class PVPTD3CPL(TD3):
                 assert (c_actions_novice == c_actions_novice).all()
 
                 _, log_probs_tmp_c, entropy_c = self.policy.evaluate_actions(
-                    c_obs.flatten(0, 1)[c_valid_mask], c_actions_behavior.flatten(0, 1)[c_valid_mask]
+                    c_obs.flatten(0, 1)[c_valid_mask],
+                    c_actions_behavior.flatten(0, 1)[c_valid_mask]
                 )
                 log_probs_c = log_probs_tmp_c.new_zeros(c_valid_mask.shape[0])
                 log_probs_c[c_valid_mask] = log_probs_tmp_c
-                adv_c = log_probs_to_advantages(
-                    log_probs_c.reshape(num_c_comparisons, num_steps_per_chunk), alpha
-                )
+                adv_c = log_probs_to_advantages(log_probs_c.reshape(num_c_comparisons, num_steps_per_chunk), alpha)
 
                 # Case 6: c > a- & c > b-
                 min_comparison = min(num_c_comparisons, num_comparisons)
@@ -706,9 +760,10 @@ class PVPTD3CPL(TD3):
             self.actor_update_count += 1
 
         action_norm = np.linalg.norm(
-            self.policy.predict(obs.cpu().flatten(0, 1), deterministic=True)[0]
-            - actions_behavior.flatten(0, 1).cpu().numpy(),
-            axis=-1).mean()
+            self.policy.predict(obs.cpu().flatten(0, 1), deterministic=True)[0] -
+            actions_behavior.flatten(0, 1).cpu().numpy(),
+            axis=-1
+        ).mean()
         gt_norm = (actions_novice - actions_behavior).norm(dim=-1).mean().item()
         self.logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
         self.logger.record("train/pred_action_norm", action_norm)
@@ -717,30 +772,30 @@ class PVPTD3CPL(TD3):
             self.logger.record("train/{}".format(key), np.mean(values))
 
     def _store_transition(
-            self,
-            replay_buffer: ReplayBuffer,
-            buffer_action: np.ndarray,
-            new_obs: Union[np.ndarray, Dict[str, np.ndarray]],
-            reward: np.ndarray,
-            dones: np.ndarray,
-            infos: List[Dict[str, Any]],
+        self,
+        replay_buffer: ReplayBuffer,
+        buffer_action: np.ndarray,
+        new_obs: Union[np.ndarray, Dict[str, np.ndarray]],
+        reward: np.ndarray,
+        dones: np.ndarray,
+        infos: List[Dict[str, Any]],
     ) -> None:
         # if infos[0]["takeover"] or infos[0]["takeover_start"]:
         #     replay_buffer = self.human_data_buffer
         super()._store_transition(replay_buffer, buffer_action, new_obs, reward, dones, infos)
 
     def save_replay_buffer(
-            self, path_human: Union[str, pathlib.Path, io.BufferedIOBase], path_replay: Union[str, pathlib.Path,
-            io.BufferedIOBase]
+        self, path_human: Union[str, pathlib.Path, io.BufferedIOBase], path_replay: Union[str, pathlib.Path,
+                                                                                          io.BufferedIOBase]
     ) -> None:
         save_to_pkl(path_human, self.human_data_buffer, self.verbose)
         super().save_replay_buffer(path_replay)
 
     def load_replay_buffer(
-            self,
-            path_human: Union[str, pathlib.Path, io.BufferedIOBase],
-            path_replay: Union[str, pathlib.Path, io.BufferedIOBase],
-            truncate_last_traj: bool = True,
+        self,
+        path_human: Union[str, pathlib.Path, io.BufferedIOBase],
+        path_replay: Union[str, pathlib.Path, io.BufferedIOBase],
+        truncate_last_traj: bool = True,
     ) -> None:
         """
         Load a replay buffer from a pickle file.
@@ -769,39 +824,32 @@ class PVPTD3CPL(TD3):
         return (['policy'], [])
 
     def learn(
-            self,
-            total_timesteps: int,
-            callback: MaybeCallback = None,
-            log_interval: int = 4,
-            eval_env: Optional[GymEnv] = None,
-            eval_freq: int = -1,
-            n_eval_episodes: int = 5,
-            tb_log_name: str = "run",
-            eval_log_path: Optional[str] = None,
-            reset_num_timesteps: bool = True,
-            save_timesteps: int = 2000,
-            buffer_save_timesteps: int = 2000,
-            save_path_human: Union[str, pathlib.Path, io.BufferedIOBase] = "",
-            save_path_replay: Union[str, pathlib.Path, io.BufferedIOBase] = "",
-            save_buffer: bool = True,
-            load_buffer: bool = False,
-            load_path_human: Union[str, pathlib.Path, io.BufferedIOBase] = "",
-            load_path_replay: Union[str, pathlib.Path, io.BufferedIOBase] = "",
-            warmup: bool = False,
-            warmup_steps: int = 5000,
-            eval_deterministic=True,
+        self,
+        total_timesteps: int,
+        callback: MaybeCallback = None,
+        log_interval: int = 4,
+        eval_env: Optional[GymEnv] = None,
+        eval_freq: int = -1,
+        n_eval_episodes: int = 5,
+        tb_log_name: str = "run",
+        eval_log_path: Optional[str] = None,
+        reset_num_timesteps: bool = True,
+        save_timesteps: int = 2000,
+        buffer_save_timesteps: int = 2000,
+        save_path_human: Union[str, pathlib.Path, io.BufferedIOBase] = "",
+        save_path_replay: Union[str, pathlib.Path, io.BufferedIOBase] = "",
+        save_buffer: bool = True,
+        load_buffer: bool = False,
+        load_path_human: Union[str, pathlib.Path, io.BufferedIOBase] = "",
+        load_path_replay: Union[str, pathlib.Path, io.BufferedIOBase] = "",
+        warmup: bool = False,
+        warmup_steps: int = 5000,
+        eval_deterministic=True,
     ) -> "OffPolicyAlgorithm":
 
         total_timesteps, callback = self._setup_learn(
-            total_timesteps,
-            eval_env,
-            callback,
-            eval_freq,
-            n_eval_episodes,
-            eval_log_path,
-            reset_num_timesteps,
-            tb_log_name,
-            eval_deterministic
+            total_timesteps, eval_env, callback, eval_freq, n_eval_episodes, eval_log_path, reset_num_timesteps,
+            tb_log_name, eval_deterministic
         )
         if load_buffer:
             self.load_replay_buffer(load_path_human, load_path_replay)

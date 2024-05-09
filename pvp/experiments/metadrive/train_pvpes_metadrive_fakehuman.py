@@ -198,7 +198,6 @@ if __name__ == '__main__':
     else:
         model = PVPES(**config["algo"])
 
-
     # ===== Launch training =====
     model.learn(
         # training

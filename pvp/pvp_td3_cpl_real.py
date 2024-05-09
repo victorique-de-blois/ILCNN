@@ -80,7 +80,6 @@ class PVPRealTD3CPL(PVPTD3CPL):
 
         num_steps_per_chunk = self.extra_config["num_steps_per_chunk"]
 
-
         # if self.extra_config["use_chunk_adv"]:
         # Reorganize data with chunks
         # Now obs.shape = (#batches, #steps, #features)
@@ -101,49 +100,95 @@ class PVPRealTD3CPL(PVPTD3CPL):
         for i, ep in enumerate(replay_data_agent):
             if len(ep.observations) - num_steps_per_chunk >= 0:
                 for s in range(len(ep.observations) - num_steps_per_chunk):
-                    new_obs.append(ep.observations[s: s + num_steps_per_chunk])
-                    new_next_obs.append(ep.next_observations[s: s + num_steps_per_chunk])
-                    new_action_behaviors.append(ep.actions_behavior[s: s + num_steps_per_chunk])
-                    new_action_novices.append(ep.actions_novice[s: s + num_steps_per_chunk])
-                    new_dones.append(ep.dones[s: s + num_steps_per_chunk])
+                    new_obs.append(ep.observations[s:s + num_steps_per_chunk])
+                    new_next_obs.append(ep.next_observations[s:s + num_steps_per_chunk])
+                    new_action_behaviors.append(ep.actions_behavior[s:s + num_steps_per_chunk])
+                    new_action_novices.append(ep.actions_novice[s:s + num_steps_per_chunk])
+                    new_dones.append(ep.dones[s:s + num_steps_per_chunk])
                     new_valid_ep.append(i)
                     new_valid_step.append(s)
-                    new_valid_count.append(ep.interventions[s: s + num_steps_per_chunk].sum())
+                    new_valid_count.append(ep.interventions[s:s + num_steps_per_chunk].sum())
                     new_valid_mask.append(ep.interventions.new_ones(num_steps_per_chunk))
 
-                    intervention = ep.interventions[s: s + num_steps_per_chunk]
+                    intervention = ep.interventions[s:s + num_steps_per_chunk]
                     first_intervention = intervention.squeeze(-1).argmax()
                     interventions.append(intervention)
                     is_before_first_intervention.append(
                         torch.nn.functional.pad(
-                            intervention.new_ones(first_intervention + 1), pad=(0, num_steps_per_chunk - first_intervention - 1)
+                            intervention.new_ones(first_intervention + 1),
+                            pad=(0, num_steps_per_chunk - first_intervention - 1)
                         )
                     )
 
             else:
                 # Need to pad the data
-                new_obs.append(torch.cat([ep.observations, ep.observations.new_zeros(
-                    [num_steps_per_chunk - len(ep.observations), *ep.observations.shape[1:]])], dim=0))
-                new_next_obs.append(torch.cat([ep.next_observations, ep.next_observations.new_zeros(
-                    [num_steps_per_chunk - len(ep.next_observations), *ep.next_observations.shape[1:]])], dim=0))
-                new_action_behaviors.append(torch.cat([ep.actions_behavior, ep.actions_behavior.new_zeros(
-                    [num_steps_per_chunk - len(ep.actions_behavior), *ep.actions_behavior.shape[1:]])], dim=0))
-                new_action_novices.append(torch.cat([ep.actions_novice, ep.actions_novice.new_zeros(
-                    [num_steps_per_chunk - len(ep.actions_novice), *ep.actions_novice.shape[1:]])], dim=0))
-                new_dones.append(torch.cat([ep.dones, ep.dones.new_zeros(
-                    [num_steps_per_chunk - len(ep.dones), *ep.dones.shape[1:]])], dim=0))
+                new_obs.append(
+                    torch.cat(
+                        [
+                            ep.observations,
+                            ep.observations.new_zeros(
+                                [num_steps_per_chunk - len(ep.observations), *ep.observations.shape[1:]]
+                            )
+                        ],
+                        dim=0
+                    )
+                )
+                new_next_obs.append(
+                    torch.cat(
+                        [
+                            ep.next_observations,
+                            ep.next_observations.new_zeros(
+                                [num_steps_per_chunk - len(ep.next_observations), *ep.next_observations.shape[1:]]
+                            )
+                        ],
+                        dim=0
+                    )
+                )
+                new_action_behaviors.append(
+                    torch.cat(
+                        [
+                            ep.actions_behavior,
+                            ep.actions_behavior.new_zeros(
+                                [num_steps_per_chunk - len(ep.actions_behavior), *ep.actions_behavior.shape[1:]]
+                            )
+                        ],
+                        dim=0
+                    )
+                )
+                new_action_novices.append(
+                    torch.cat(
+                        [
+                            ep.actions_novice,
+                            ep.actions_novice.new_zeros(
+                                [num_steps_per_chunk - len(ep.actions_novice), *ep.actions_novice.shape[1:]]
+                            )
+                        ],
+                        dim=0
+                    )
+                )
+                new_dones.append(
+                    torch.cat(
+                        [ep.dones,
+                         ep.dones.new_zeros([num_steps_per_chunk - len(ep.dones), *ep.dones.shape[1:]])],
+                        dim=0
+                    )
+                )
                 new_valid_ep.append(i)
                 new_valid_step.append(0)
                 new_valid_count.append(ep.interventions.sum())
-                new_valid_mask.append(torch.cat([
-                    ep.interventions.new_ones(len(ep.interventions)),
-                    ep.interventions.new_zeros(num_steps_per_chunk - len(ep.interventions))
-                ]))
+                new_valid_mask.append(
+                    torch.cat(
+                        [
+                            ep.interventions.new_ones(len(ep.interventions)),
+                            ep.interventions.new_zeros(num_steps_per_chunk - len(ep.interventions))
+                        ]
+                    )
+                )
 
-                intervention = torch.cat([
-                    ep.interventions,
-                    ep.interventions.new_zeros(num_steps_per_chunk - len(ep.interventions))
-                ])
+                intervention = torch.cat(
+                    [ep.interventions,
+                     ep.interventions.new_zeros(num_steps_per_chunk - len(ep.interventions))]
+                )
                 first_intervention = intervention.squeeze(-1).argmax()
                 interventions.append(intervention)
                 is_before_first_intervention.append(
@@ -218,7 +263,7 @@ class PVPRealTD3CPL(PVPTD3CPL):
             if len(no_human_involved_indices) > 0:
                 # Make the data from agent's exploration equally sized as human involved data.
                 c_ind = torch.randint(
-                    len(no_human_involved_indices), size=(num_comparisons,)
+                    len(no_human_involved_indices), size=(num_comparisons, )
                 ).to(no_human_involved_indices.device)
                 num_c_comparisons = num_comparisons
 
@@ -256,13 +301,17 @@ class PVPRealTD3CPL(PVPTD3CPL):
 
             zeros_label = torch.zeros_like(adv_a_pos)
             # Case 1: a+ > a-
-            cpl_loss_1, accuracy_1 = biased_bce_with_logits(adv_a_pos, adv_a_neg, zeros_label, bias=cpl_bias, shuffle=False)
+            cpl_loss_1, accuracy_1 = biased_bce_with_logits(
+                adv_a_pos, adv_a_neg, zeros_label, bias=cpl_bias, shuffle=False
+            )
             cpl_losses.append(cpl_loss_1)
             accuracies.append(accuracy_1)
 
             # Case 3: a+ > b-
             shuffled_indices = torch.randperm(num_comparisons)
-            cpl_loss_3, accuracy_3 = biased_bce_with_logits(adv_a_pos, adv_a_neg[shuffled_indices], zeros_label, bias=cpl_bias, shuffle=False)
+            cpl_loss_3, accuracy_3 = biased_bce_with_logits(
+                adv_a_pos, adv_a_neg[shuffled_indices], zeros_label, bias=cpl_bias, shuffle=False
+            )
             cpl_losses.append(cpl_loss_3)
             accuracies.append(accuracy_3)
             stat_recorder["cpl_loss_3"].append(cpl_loss_3.item())
@@ -288,9 +337,7 @@ class PVPRealTD3CPL(PVPTD3CPL):
             if self._n_updates % self.policy_delay == 0:
 
                 # Compute actor loss
-                actor_loss = -self.reward_model.q1_forward(
-                    rl_obs, self.actor(rl_obs)
-                ).mean()
+                actor_loss = -self.reward_model.q1_forward(rl_obs, self.actor(rl_obs)).mean()
 
                 # Optimize the actor
                 self.actor.optimizer.zero_grad()
@@ -303,9 +350,10 @@ class PVPRealTD3CPL(PVPTD3CPL):
                 stat_recorder["actor_loss"].append(actor_loss.item())
                 self.actor_update_count += 1
 
-        action_norm = np.linalg.norm(self.policy.predict(rl_obs.cpu(), deterministic=True)[0] - rl_actions.cpu().numpy(), axis=-1).mean()
+        action_norm = np.linalg.norm(
+            self.policy.predict(rl_obs.cpu(), deterministic=True)[0] - rl_actions.cpu().numpy(), axis=-1
+        ).mean()
         gt_norm = (actions_novice - actions_behavior).norm(dim=-1).mean().item()
-
 
         self.logger.record("train/pred_action_norm", action_norm)
         self.logger.record("train/gt_action_norm", gt_norm)
@@ -315,30 +363,30 @@ class PVPRealTD3CPL(PVPTD3CPL):
             self.logger.record("train/{}".format(key), np.mean(values))
 
     def _store_transition(
-            self,
-            replay_buffer: ReplayBuffer,
-            buffer_action: np.ndarray,
-            new_obs: Union[np.ndarray, Dict[str, np.ndarray]],
-            reward: np.ndarray,
-            dones: np.ndarray,
-            infos: List[Dict[str, Any]],
+        self,
+        replay_buffer: ReplayBuffer,
+        buffer_action: np.ndarray,
+        new_obs: Union[np.ndarray, Dict[str, np.ndarray]],
+        reward: np.ndarray,
+        dones: np.ndarray,
+        infos: List[Dict[str, Any]],
     ) -> None:
         # if infos[0]["takeover"] or infos[0]["takeover_start"]:
         #     replay_buffer = self.human_data_buffer
         super()._store_transition(replay_buffer, buffer_action, new_obs, reward, dones, infos)
 
     def save_replay_buffer(
-            self, path_human: Union[str, pathlib.Path, io.BufferedIOBase], path_replay: Union[str, pathlib.Path,
-            io.BufferedIOBase]
+        self, path_human: Union[str, pathlib.Path, io.BufferedIOBase], path_replay: Union[str, pathlib.Path,
+                                                                                          io.BufferedIOBase]
     ) -> None:
         save_to_pkl(path_human, self.human_data_buffer, self.verbose)
         super().save_replay_buffer(path_replay)
 
     def load_replay_buffer(
-            self,
-            path_human: Union[str, pathlib.Path, io.BufferedIOBase],
-            path_replay: Union[str, pathlib.Path, io.BufferedIOBase],
-            truncate_last_traj: bool = True,
+        self,
+        path_human: Union[str, pathlib.Path, io.BufferedIOBase],
+        path_replay: Union[str, pathlib.Path, io.BufferedIOBase],
+        truncate_last_traj: bool = True,
     ) -> None:
         """
         Load a replay buffer from a pickle file.
@@ -367,26 +415,26 @@ class PVPRealTD3CPL(PVPTD3CPL):
         return (['policy'], [])
 
     def learn(
-            self,
-            total_timesteps: int,
-            callback: MaybeCallback = None,
-            log_interval: int = 4,
-            eval_env: Optional[GymEnv] = None,
-            eval_freq: int = -1,
-            n_eval_episodes: int = 5,
-            tb_log_name: str = "run",
-            eval_log_path: Optional[str] = None,
-            reset_num_timesteps: bool = True,
-            save_timesteps: int = 2000,
-            buffer_save_timesteps: int = 2000,
-            save_path_human: Union[str, pathlib.Path, io.BufferedIOBase] = "",
-            save_path_replay: Union[str, pathlib.Path, io.BufferedIOBase] = "",
-            save_buffer: bool = True,
-            load_buffer: bool = False,
-            load_path_human: Union[str, pathlib.Path, io.BufferedIOBase] = "",
-            load_path_replay: Union[str, pathlib.Path, io.BufferedIOBase] = "",
-            warmup: bool = False,
-            warmup_steps: int = 5000,
+        self,
+        total_timesteps: int,
+        callback: MaybeCallback = None,
+        log_interval: int = 4,
+        eval_env: Optional[GymEnv] = None,
+        eval_freq: int = -1,
+        n_eval_episodes: int = 5,
+        tb_log_name: str = "run",
+        eval_log_path: Optional[str] = None,
+        reset_num_timesteps: bool = True,
+        save_timesteps: int = 2000,
+        buffer_save_timesteps: int = 2000,
+        save_path_human: Union[str, pathlib.Path, io.BufferedIOBase] = "",
+        save_path_replay: Union[str, pathlib.Path, io.BufferedIOBase] = "",
+        save_buffer: bool = True,
+        load_buffer: bool = False,
+        load_path_human: Union[str, pathlib.Path, io.BufferedIOBase] = "",
+        load_path_replay: Union[str, pathlib.Path, io.BufferedIOBase] = "",
+        warmup: bool = False,
+        warmup_steps: int = 5000,
     ) -> "OffPolicyAlgorithm":
 
         total_timesteps, callback = self._setup_learn(

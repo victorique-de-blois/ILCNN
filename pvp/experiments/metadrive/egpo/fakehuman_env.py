@@ -93,7 +93,6 @@ class FakeHumanEnv(HumanInTheLoopEnv):
                 "free_level": 0.95,
                 "manual_control": False,
                 "use_render": False,
-
                 "expert_deterministic": False,
             }
         )

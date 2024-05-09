@@ -61,9 +61,9 @@ import pathlib
 
 logger = logging.getLogger(__name__)
 
-
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent.parent
 PACKAGE_ROOT = REPO_ROOT / "pvp"
+
 
 class WandbCallback(BaseCallback):
     """ Log SB3 experiments to Weights and Biases
@@ -120,7 +120,6 @@ class WandbCallback(BaseCallback):
             save_code=True,
             settings=wandb.Settings(code_dir=str(PACKAGE_ROOT))
         )
-
 
         super().__init__(verbose)
         if wandb.run is None:

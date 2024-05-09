@@ -4,7 +4,6 @@ from pathlib import Path
 import uuid
 import numpy as np
 
-
 from pvp.experiments.metadrive.egpo.fakehuman_env import FakeHumanEnv
 from pvp.experiments.metadrive.human_in_the_loop_env import HumanInTheLoopEnv
 from pvp.pvp_td3_cpl import PVPTD3CPL, PVPTD3CPLPolicy
@@ -144,7 +143,6 @@ if __name__ == '__main__':
 
         # Algorithm config
         algo=dict(
-
             use_chunk_adv=args.use_chunk_adv,
             num_comparisons=args.num_comparisons,
             num_steps_per_chunk=args.num_steps_per_chunk,
@@ -166,7 +164,6 @@ if __name__ == '__main__':
             use_target_policy_only_overwrite_takeover=args.use_target_policy_only_overwrite_takeover,
             bc_loss_weight=args.bc_loss_weight,
             add_bc_loss_only_interventions=args.add_bc_loss_only_interventions,
-
             use_balance_sample=True,
             policy=MlpPolicy if not real_td3 else PVPRealTD3Policy,
             replay_buffer_class=HACOReplayBuffer,  # TODO: USELESS
@@ -231,7 +228,6 @@ if __name__ == '__main__':
     # TODO: FIXME: should add back when human experiemetn.
     # train_env = SharedControlMonitor(env=train_env, folder=trial_dir / "data", prefix=trial_name)
 
-
     config["algo"]["env"] = train_env
     assert config["algo"]["env"] is not None
 
@@ -243,11 +239,10 @@ if __name__ == '__main__':
             start_seed=1000,
             horizon=1500,
 
-
-# start_seed=1024,
-#             num_scenarios=1,
-#             free_level=-1000,
-#             expert_deterministic=True,
+            # start_seed=1024,
+            #             num_scenarios=1,
+            #             free_level=-1000,
+            #             expert_deterministic=True,
         )
         from pvp.experiments.metadrive.human_in_the_loop_env import HumanInTheLoopEnv
         from pvp.sb3.common.monitor import Monitor
@@ -258,13 +253,11 @@ if __name__ == '__main__':
         eval_env = Monitor(env=eval_env, filename=str(trial_dir))
         return eval_env
 
-
     if args.eval:
         eval_env = SubprocVecEnv([lambda: _make_eval_env(True)])
         # eval_env = SubprocVecEnv([lambda: _make_eval_env(False)])
         config["algo"]["learning_rate"] = 0.0
         config["algo"]["train_freq"] = (1, "step")
-
 
         model = PVPTD3CPL.load(args.ckpt, **config["algo"])
         # model = PVPTD3CPL(**config["algo"])
@@ -292,7 +285,6 @@ if __name__ == '__main__':
             log_interval=1,
             save_buffer=False,
             load_buffer=False,
-
             eval_deterministic=not args.eval_stochastic,
         )
         exit(0)

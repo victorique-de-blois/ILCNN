@@ -340,7 +340,9 @@ class PVPES(PVPTD3):
             if replay_data_human is not None:
                 # Augment the reward / dones here.
 
-                current_q_behavior_values = self.critic(replay_data_human.observations, replay_data_human.actions_behavior)
+                current_q_behavior_values = self.critic(
+                    replay_data_human.observations, replay_data_human.actions_behavior
+                )
                 current_q_behavior_values = np.mean([q.mean().item() for q in current_q_behavior_values])
                 current_q_novice_values = self.critic(replay_data_human.observations, replay_data_human.actions_novice)
                 current_q_novice_values = np.mean([q.mean().item() for q in current_q_novice_values])
@@ -447,7 +449,8 @@ class PVPES(PVPTD3):
             # Delayed policy updates
             if self._n_updates % self.policy_delay == 0:
                 # Compute actor loss
-                actor_loss = -self.critic.q1_forward(replay_data.observations, self.actor(replay_data.observations)).mean()
+                actor_loss = -self.critic.q1_forward(replay_data.observations, self.actor(replay_data.observations
+                                                                                          )).mean()
 
                 if self.extra_config["add_bc_loss"] and replay_data_human.dones.shape[0] > 0:
                     bc_loss = F.mse_loss(replay_data_human.actions_behavior, self.actor(replay_data_human.observations))
@@ -468,4 +471,3 @@ class PVPES(PVPTD3):
         self.logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
         for key, values in stat_recorder.items():
             self.logger.record("train/{}".format(key), np.mean(values))
-
