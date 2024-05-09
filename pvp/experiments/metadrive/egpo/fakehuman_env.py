@@ -93,6 +93,8 @@ class FakeHumanEnv(HumanInTheLoopEnv):
                 "free_level": 0.95,
                 "manual_control": False,
                 "use_render": False,
+
+                "expert_deterministic": False,
             }
         )
         return config
@@ -111,16 +113,24 @@ class FakeHumanEnv(HumanInTheLoopEnv):
         distribution = self.expert.get_distribution(last_obs)
         log_prob = distribution.log_prob(torch.from_numpy(actions).to(last_obs.device))
         action_prob = log_prob.exp().detach().cpu().numpy()
-        expert_action = distribution.sample().detach().cpu().numpy()
+
+        if self.config["expert_deterministic"]:
+            expert_action = distribution.mode().detach().cpu().numpy()
+        else:
+            expert_action = distribution.sample().detach().cpu().numpy()
+
         assert expert_action.shape[0] == action_prob.shape[0] == 1
         action_prob = action_prob[0]
         expert_action = expert_action[0]
         if action_prob < 1 - self.config['free_level']:
+
+            # print(f"Action probability: {action_prob}, agent action: {actions}, expert action: {expert_action},")
+
             actions = expert_action
             self.takeover = True
         else:
             self.takeover = False
-        # print(f"Action probability: {action_prob}, agent action: {actions}, expert action: {expert_action}, takeover: {self.takeover}")
+        # print(f"Action probability: {action_prob:.3f}, agent action: {actions}, expert action: {expert_action}, takeover: {self.takeover}")
 
         o, r, d, i = super(HumanInTheLoopEnv, self).step(actions)
         self.takeover_recorder.append(self.takeover)
@@ -128,6 +138,20 @@ class FakeHumanEnv(HumanInTheLoopEnv):
 
         i["takeover_log_prob"] = log_prob.item()
 
+        if self.config["use_render"]:  # and self.config["main_exp"]: #and not self.config["in_replay"]:
+            super(HumanInTheLoopEnv, self).render(
+                text={
+                    "Total Cost": round(self.total_cost, 2),
+                    "Takeover Cost": round(self.total_takeover_cost, 2),
+                    "Takeover": "TAKEOVER" if self.takeover else "NO",
+                    "Total Step": self.total_steps,
+                    # "Total Time": time.strftime("%M:%S", time.gmtime(time.time() - self.start_time)),
+                    "Takeover Rate": "{:.2f}%".format(np.mean(np.array(self.takeover_recorder) * 100)),
+                    "Pause": "Press E",
+                }
+            )
+
+        assert i["takeover"] == self.takeover
         return o, r, d, i
 
     def _get_step_return(self, actions, engine_info):
@@ -137,7 +161,7 @@ class FakeHumanEnv(HumanInTheLoopEnv):
         d = tm or tc
         last_t = self.last_takeover
         engine_info["takeover_start"] = True if not last_t and self.takeover else False
-        engine_info["takeover"] = self.takeover and not engine_info["takeover_start"]
+        engine_info["takeover"] = self.takeover
         condition = engine_info["takeover_start"] if self.config["only_takeover_start_cost"] else self.takeover
         if not condition:
             engine_info["takeover_cost"] = 0

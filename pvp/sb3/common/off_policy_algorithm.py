@@ -20,7 +20,7 @@ from pvp.sb3.common.type_aliases import GymEnv, MaybeCallback, RolloutReturn, Sc
 from pvp.sb3.common.utils import safe_mean, should_collect_more_steps
 from pvp.sb3.common.vec_env import VecEnv
 from pvp.sb3.her.her_replay_buffer import HerReplayBuffer
-
+import gymnasium
 
 class OffPolicyAlgorithm(BaseAlgorithm):
     """
@@ -105,6 +105,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
         sde_support: bool = True,
         remove_time_limit_termination: bool = False,
         supported_action_spaces: Optional[Tuple[gym.spaces.Space, ...]] = None,
+        **kwargs
     ):
 
         super(OffPolicyAlgorithm, self).__init__(
@@ -282,6 +283,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
         log_path: Optional[str] = None,
         reset_num_timesteps: bool = True,
         tb_log_name: str = "run",
+            eval_deterministic=True,
     ) -> Tuple[int, BaseCallback]:
         """
         cf `BaseAlgorithm`.
@@ -322,6 +324,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
             log_path,
             reset_num_timesteps,
             tb_log_name,
+            deterministic=eval_deterministic
         )
 
     def learn(
@@ -388,6 +391,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
         learning_starts: int,
         action_noise: Optional[ActionNoise] = None,
         n_envs: int = 1,
+        deterministic=None,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Sample an action according to the exploration policy.
@@ -412,10 +416,12 @@ class OffPolicyAlgorithm(BaseAlgorithm):
             # Note: when using continuous actions,
             # we assume that the policy uses tanh to scale the action
             # We use non-deterministic action in the case of SAC, for TD3, it does not matter
-            unscaled_action, _ = self.predict(self._last_obs, deterministic=False)
+            if deterministic is None:
+                deterministic = False
+            unscaled_action, _ = self.predict(self._last_obs, deterministic=deterministic)
 
         # Rescale the action from [low, high] to [-1, 1]
-        if isinstance(self.action_space, gym.spaces.Box):
+        if isinstance(self.action_space, (gym.spaces.Box, gymnasium.spaces.Box)):
             scaled_action = self.policy.scale_action(unscaled_action)
 
             # Add noise to the action (improve exploration)
@@ -452,7 +458,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
 
             for k, v in first_ep_info.items():
                 if k.startswith("total"):
-                    self.logger.record("rollout/{}_sum".format(k), sum([ep_info[k] for ep_info in self.ep_info_buffer]))
+                    self.logger.record("rollout/{}_sum".format(k), self.ep_info_buffer[-1][k])
 
         self.logger.record("time/fps", fps)
         self.logger.record("time/time_elapsed", int(time_elapsed))
@@ -548,6 +554,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
         action_noise: Optional[ActionNoise] = None,
         learning_starts: int = 0,
         log_interval: Optional[int] = None,
+        deterministic=None,
     ) -> RolloutReturn:
         """
         Collect experiences and store them into a ``ReplayBuffer``.
@@ -595,12 +602,13 @@ class OffPolicyAlgorithm(BaseAlgorithm):
                 self.actor.reset_noise(env.num_envs)
 
             # Select action randomly or according to policy
-            actions, buffer_actions = self._sample_action(learning_starts, action_noise, env.num_envs)
+            actions, buffer_actions = self._sample_action(learning_starts, action_noise, env.num_envs, deterministic=deterministic)
 
             # Rescale and perform action
             new_obs, rewards, dones, infos = env.step(actions)
 
             self.num_timesteps += env.num_envs
+            self.since_last_reset += env.num_envs
             num_collected_steps += 1
 
             # Give access to local variables

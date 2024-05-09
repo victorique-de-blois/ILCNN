@@ -99,6 +99,7 @@ class BaseAlgorithm(ABC):
         use_sde: bool = False,
         sde_sample_freq: int = -1,
         supported_action_spaces: Optional[Tuple[gym.spaces.Space, ...]] = None,
+        **kwargs
     ):
 
         if isinstance(policy, str) and policy_base is not None:
@@ -119,6 +120,7 @@ class BaseAlgorithm(ABC):
         self.action_space = None  # type: Optional[gym.spaces.Space]
         self.n_envs = None
         self.num_timesteps = 0
+        self.since_last_reset = 0
         # Used for updating schedules
         self._total_timesteps = 0
         # Used for computing fps, it is updated at each call of learn()
@@ -185,6 +187,7 @@ class BaseAlgorithm(ABC):
                 )
 
             if self.use_sde and not isinstance(self.action_space, gym.spaces.Box):
+                raise ValueError("compatiblity gymnasium space?")
                 raise ValueError(
                     "generalized State-Dependent Exploration (gSDE) can only be used with continuous actions."
                 )
@@ -299,12 +302,13 @@ class BaseAlgorithm(ABC):
             An optimizer or a list of optimizers.
         """
         # Log the current learning rate
-        self.logger.record("train/learning_rate", self.lr_schedule(self._current_progress_remaining))
+        lr = self.lr_schedule(self._current_progress_remaining)
+        self.logger.record("train/learning_rate", lr)
 
         if not isinstance(optimizers, list):
             optimizers = [optimizers]
         for optimizer in optimizers:
-            update_learning_rate(optimizer, self.lr_schedule(self._current_progress_remaining))
+            update_learning_rate(optimizer, lr)
 
     def _excluded_save_params(self) -> List[str]:
         """
@@ -353,6 +357,7 @@ class BaseAlgorithm(ABC):
         eval_freq: int = 10000,
         n_eval_episodes: int = 5,
         log_path: Optional[str] = None,
+        deterministic=True,
     ) -> BaseCallback:
         """
         :param callback: Callback(s) called at every step with state of the algorithm.
@@ -378,6 +383,7 @@ class BaseAlgorithm(ABC):
                 log_path=log_path,
                 eval_freq=eval_freq,
                 n_eval_episodes=n_eval_episodes,
+                deterministic=deterministic
             )
             callback = CallbackList([callback, eval_callback])
 
@@ -394,6 +400,7 @@ class BaseAlgorithm(ABC):
         log_path: Optional[str] = None,
         reset_num_timesteps: bool = True,
         tb_log_name: str = "run",
+        deterministic=True,
     ) -> Tuple[int, BaseCallback]:
         """
         Initialize different variables needed for training.
@@ -445,7 +452,7 @@ class BaseAlgorithm(ABC):
             self._logger = utils.configure_logger(self.verbose, self.tensorboard_log, tb_log_name, reset_num_timesteps)
 
         # Create eval callback if needed
-        callback = self._init_callback(callback, eval_env, eval_freq, n_eval_episodes, log_path)
+        callback = self._init_callback(callback, eval_env, eval_freq, n_eval_episodes, log_path, deterministic)
 
         return total_timesteps, callback
 

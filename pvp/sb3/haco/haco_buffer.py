@@ -201,14 +201,24 @@ class HACOReplayBuffer(ReplayBuffer):
                                                       ).reshape(self.intervention_starts[self.pos].shape)
         self.intervention_costs[self.pos] = np.array([step["takeover_cost"] for step in infos]
                                                      ).reshape(self.intervention_costs[self.pos].shape)
-        self.takeover_log_prob[self.pos] = np.array([step["takeover_log_prob"] for step in infos]
-                                                    ).reshape(self.takeover_log_prob[self.pos].shape)
+        if "takeover_log_prob" in infos[0]:
+            self.takeover_log_prob[self.pos] = np.array([step["takeover_log_prob"] for step in infos]
+                                                        ).reshape(self.takeover_log_prob[self.pos].shape)
+        else:
+            self.takeover_log_prob[self.pos] = np.zeros_like(self.takeover_log_prob[self.pos])
         behavior_actions = np.array([step["raw_action"] for step in infos]).copy()
         if isinstance(self.action_space, (spaces.Discrete, new_spaces.Discrete)):
             action = action.reshape((self.n_envs, self.action_dim))
             behavior_actions = behavior_actions.reshape((self.n_envs, self.action_dim))
         self.actions_novice[self.pos] = np.array(action).copy().reshape(self.actions_novice[self.pos].shape)
         self.actions_behavior[self.pos] = behavior_actions.reshape(self.actions_behavior[self.pos].shape)
+
+        # NOTE(PZH): a sanity check, if not takeover, then behavior actions must == novice actions
+        # A special case is you might want to clip the novice actions.
+        if not infos[0]["takeover"]:
+            # TODO: This is overfit to MetaDrive, might need to fix.
+            assert np.abs(np.clip(action, -1, 1) - behavior_actions).max() < 1e-6
+
         if self.discard_reward:
             self.rewards[self.pos] = np.zeros_like(self.rewards[self.pos])
         else:
@@ -337,16 +347,27 @@ class HACOReplayBufferEpisode(ReplayBuffer):
         assert len(obs) == 1, "Only support one env for now"
         self.episodes[-1].add(obs, next_obs, action, reward, done, infos)
         if done[0]:
+            # if not infos[0]['arrive_dest']:
+            #     self.pos -= 1
+            #     self.episodes = self.episodes[:-1]
+            #     print("THIS EPISODE IS DISCARDED AS IT DOES NOT SUCCESS!!!! THIS IS DEBUG CODE AND SHOULD BE REMOVED!!!")
+            #
             self.episodes.append(self.make_buffer())
             self.pos += 1
 
     def sample(
-        self, batch_size: int, env: Optional[VecNormalize] = None, return_all=False
+        self, batch_size: int, env: Optional[VecNormalize] = None, return_all=False,
+            last_episodes = None
     ) -> HACODictReplayBufferSamples:
         """
         We will return everything we have!
         """
-        batch_inds = np.random.permutation(np.arange(self.buffer_size if self.full else self.pos))
+        if last_episodes is None:
+            batch_inds = np.arange(self.buffer_size if self.full else self.pos)
+        else:
+            s = max(0, self.pos - last_episodes)
+            e = self.pos
+            batch_inds = np.arange(s, e)
         new_ret = self._get_samples(batch_inds, env=env)
         return new_ret
 

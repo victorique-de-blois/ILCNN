@@ -57,9 +57,13 @@ from wandb.sdk.lib import telemetry as wb_telemetry
 
 from pvp.sb3.common.callbacks import BaseCallback
 from pvp.utils.utils import get_api_key_file
+import pathlib
 
 logger = logging.getLogger(__name__)
 
+
+REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent.parent
+PACKAGE_ROOT = REPO_ROOT / "pvp"
 
 class WandbCallback(BaseCallback):
     """ Log SB3 experiments to Weights and Biases
@@ -113,12 +117,18 @@ class WandbCallback(BaseCallback):
             resume=True,
             reinit=True,
             sync_tensorboard=True,  # Open this and setup tb in sb3 so that we can get log!
-            save_code=True
+            save_code=True,
+            settings=wandb.Settings(code_dir=str(PACKAGE_ROOT))
         )
+
 
         super().__init__(verbose)
         if wandb.run is None:
             raise wandb.Error("You must call wandb.init() before WandbCallback()")
+
+        print("Logging code at: ", PACKAGE_ROOT)
+        wandb.run.log_code(str(PACKAGE_ROOT))
+
         with wb_telemetry.context() as tel:
             tel.feature.sb3 = True
         self.model_save_freq = model_save_freq

@@ -33,6 +33,7 @@ from pvp.sb3.common.torch_layers import (
 from pvp.sb3.common.type_aliases import Schedule
 from pvp.sb3.common.utils import get_device, is_vectorized_observation, obs_as_tensor
 
+import gymnasium
 
 class BaseModel(nn.Module, ABC):
     """
@@ -337,7 +338,8 @@ class BasePolicy(BaseModel):
         # Convert to numpy
         actions = actions.cpu().numpy()
 
-        if isinstance(self.action_space, gym.spaces.Box):
+        if isinstance(self.action_space, (gym.spaces.Box, gymnasium.spaces.Box)):
+
             if self.squash_output:
                 # Rescale to proper domain when using squashing
                 actions = self.unscale_action(actions)
@@ -426,6 +428,8 @@ class ActorCriticPolicy(BasePolicy):
         normalize_images: bool = True,
         optimizer_class: Type[th.optim.Optimizer] = th.optim.Adam,
         optimizer_kwargs: Optional[Dict[str, Any]] = None,
+        fixed_log_std: bool = False,
+        dist_kwargs: Optional[Dict[str, Any]] = None,
     ):
 
         if optimizer_kwargs is None:
@@ -460,7 +464,7 @@ class ActorCriticPolicy(BasePolicy):
 
         self.normalize_images = normalize_images
         self.log_std_init = log_std_init
-        dist_kwargs = None
+        self.fixed_log_std = fixed_log_std
         # Keyword arguments for gSDE distribution
         if use_sde:
             dist_kwargs = {
@@ -544,7 +548,7 @@ class ActorCriticPolicy(BasePolicy):
 
         if isinstance(self.action_dist, DiagGaussianDistribution):
             self.action_net, self.log_std = self.action_dist.proba_distribution_net(
-                latent_dim=latent_dim_pi, log_std_init=self.log_std_init
+                latent_dim=latent_dim_pi, log_std_init=self.log_std_init, fixed_log_std=self.fixed_log_std
             )
         elif isinstance(self.action_dist, StateDependentNoiseDistribution):
             self.action_net, self.log_std = self.action_dist.proba_distribution_net(
@@ -575,6 +579,26 @@ class ActorCriticPolicy(BasePolicy):
 
         # Setup optimizer with initial learning rate
         self.optimizer = self.optimizer_class(self.parameters(), lr=lr_schedule(1), **self.optimizer_kwargs)
+
+    def reset_parameters(self):
+        print("RESETTING POLICY PARAMETERS ...")
+        if self.ortho_init:
+            # TODO: check for features_extractor
+            # Values from stable-baselines.
+            # features_extractor/mlp values are
+            # originally from openai/baselines (default gains/init_scales).
+            module_gains = {
+                self.features_extractor: np.sqrt(2),
+                self.mlp_extractor: np.sqrt(2),
+                self.action_net: 0.01,
+                self.value_net: 1,
+            }
+            for module, gain in module_gains.items():
+                module.apply(partial(self.init_weights, gain=gain))
+
+        else:
+            raise ValueError()
+
 
     def forward(self, obs: th.Tensor, deterministic: bool = False) -> Tuple[th.Tensor, th.Tensor, th.Tensor]:
         """
@@ -891,6 +915,16 @@ class ContinuousCritic(BaseModel):
         with th.no_grad():
             features = self.extract_features(obs)
         return self.q_networks[0](th.cat([features, actions], dim=1))
+
+    def q2_forward(self, obs: th.Tensor, actions: th.Tensor) -> th.Tensor:
+        """
+        Only predict the Q-value using the first network.
+        This allows to reduce computation when all the estimates are not needed
+        (e.g. when updating the policy in TD3).
+        """
+        with th.no_grad():
+            features = self.extract_features(obs)
+        return self.q_networks[1](th.cat([features, actions], dim=1))
 
 
 _policy_registry = dict()  # type: Dict[Type[BasePolicy], Dict[str, Type[BasePolicy]]]

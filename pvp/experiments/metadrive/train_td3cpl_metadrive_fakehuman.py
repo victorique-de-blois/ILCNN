@@ -2,10 +2,13 @@ import argparse
 import os
 from pathlib import Path
 import uuid
+import numpy as np
+
 
 from pvp.experiments.metadrive.egpo.fakehuman_env import FakeHumanEnv
 from pvp.experiments.metadrive.human_in_the_loop_env import HumanInTheLoopEnv
-from pvp.pvp_td3_cpl import PVPTD3CPL
+from pvp.pvp_td3_cpl import PVPTD3CPL, PVPTD3CPLPolicy
+from pvp.pvp_td3_cpl_real import PVPRealTD3Policy, PVPRealTD3CPL
 from pvp.sb3.common.callbacks import CallbackList, CheckpointCallback
 from pvp.sb3.common.monitor import Monitor
 from pvp.sb3.common.wandb_callback import WandbCallback
@@ -37,7 +40,40 @@ if __name__ == '__main__':
     #     help="The control device, selected from [wheel, gamepad, keyboard]."
     # )
 
+    parser.add_argument("--prioritized_buffer", type=str, default="True")
     parser.add_argument("--use_chunk_adv", type=str, default="True")
+    parser.add_argument("--training_deterministic", type=str, default="True")
+    parser.add_argument("--add_loss_5", type=str, default="False")
+    parser.add_argument("--add_loss_5_inverse", type=str, default="False")
+    parser.add_argument("--mask_same_actions", type=str, default="False")
+    parser.add_argument("--remove_loss_1", type=str, default="False")
+    parser.add_argument("--remove_loss_3", type=str, default="False")
+    parser.add_argument("--remove_loss_6", type=str, default="False")
+    parser.add_argument("--add_bc_loss", type=str, default="False")
+    parser.add_argument("--add_bc_loss_only_interventions", type=str, default="False")
+    parser.add_argument("--use_target_policy", type=str, default="False")
+    parser.add_argument("--use_target_policy_only_overwrite_takeover", type=str, default="False")
+    parser.add_argument("--num_comparisons", type=int, default=64)
+    parser.add_argument("--num_steps_per_chunk", type=int, default=64)
+    parser.add_argument("--max_comparisons", type=int, default=10000)
+    parser.add_argument("--n_eval_episodes", type=int, default=50)
+    parser.add_argument("--eval_freq", type=int, default=500)
+    parser.add_argument("--hard_reset", type=int, default=-1)
+    parser.add_argument("--learning_starts", type=int, default=0)
+    parser.add_argument("--cpl_bias", type=float, default=0.5)
+    parser.add_argument("--top_factor", type=float, default=1.0)
+    parser.add_argument("--lr", type=float, default=0.0001)
+    parser.add_argument("--bc_loss_weight", type=float, default=-1.0)
+    parser.add_argument("--last_ratio", type=float, default=-1)
+    parser.add_argument("--log_std_init", type=float, default=0.0)
+
+    parser.add_argument("--fixed_log_std", action="store_true")
+    parser.add_argument("--eval_stochastic", action="store_true")
+    parser.add_argument("--real_td3", action="store_true")
+    parser.add_argument("--expert_deterministic", action="store_true")
+
+    parser.add_argument("--eval", action="store_true")
+    parser.add_argument("--ckpt", type=str, default="")
 
     args = parser.parse_args()
 
@@ -63,6 +99,30 @@ if __name__ == '__main__':
     print(f"We start logging training data into {trial_dir}")
 
     free_level = args.free_level
+    real_td3 = args.real_td3
+
+    # TODO: CONFIG!!!!
+    # def f(M):
+    #     A = 2
+    #     alpha = 0.1
+    #     M = 1
+    #     # log_std_init = (- M / (A * alpha)) - np.log(np.sqrt(2 * np.pi))
+    #
+    #     G = 2
+    #     minus = A * alpha * G * G * np.pi / np.exp(-2*M/(A * alpha))
+    #     min_val = M - minus
+    #     print(min_val)
+    #
+    # def f(log_std):
+    #     A = 2
+    #     alpha = 0.1
+    #     sigma = np.exp(log_std)
+    #     G = 2
+    #     max_a = - A * alpha * (log_std + np.log(np.sqrt(2 * np.pi)))
+    #     min_a = - A * alpha * (G * G / (2 * sigma * sigma)) + max_a
+    #     print(min_a, max_a)
+    #     print(min_a * 64, max_a * 64)
+    log_std_init = args.log_std_init
 
     # ===== Setup the config =====
     config = dict(
@@ -78,21 +138,49 @@ if __name__ == '__main__':
 
             # FakeHumanEnv config:
             free_level=free_level,
+            use_render=False,
+            expert_deterministic=args.expert_deterministic,
         ),
 
         # Algorithm config
         algo=dict(
+
             use_chunk_adv=args.use_chunk_adv,
+            num_comparisons=args.num_comparisons,
+            num_steps_per_chunk=args.num_steps_per_chunk,
+            prioritized_buffer=args.prioritized_buffer,
+            training_deterministic=args.training_deterministic,
+            add_bc_loss=args.add_bc_loss,
+            cpl_bias=args.cpl_bias,
+            add_loss_5=args.add_loss_5,
+            add_loss_5_inverse=args.add_loss_5_inverse,
+            top_factor=args.top_factor,
+            mask_same_actions=args.mask_same_actions,
+            remove_loss_1=args.remove_loss_1,
+            remove_loss_3=args.remove_loss_3,
+            remove_loss_6=args.remove_loss_6,
+            hard_reset=args.hard_reset,
+            use_target_policy=args.use_target_policy,
+            last_ratio=args.last_ratio,
+            max_comparisons=args.max_comparisons,
+            use_target_policy_only_overwrite_takeover=args.use_target_policy_only_overwrite_takeover,
+            bc_loss_weight=args.bc_loss_weight,
+            add_bc_loss_only_interventions=args.add_bc_loss_only_interventions,
+
             use_balance_sample=True,
-            policy=MlpPolicy,
+            policy=MlpPolicy if not real_td3 else PVPRealTD3Policy,
             replay_buffer_class=HACOReplayBuffer,  # TODO: USELESS
             replay_buffer_kwargs=dict(
                 discard_reward=True,  # We run in reward-free manner!
                 # max_steps=1000,  # TODO: CONFIG
             ),
-            policy_kwargs=dict(net_arch=[256, 256]),
+            policy_kwargs=dict(
+                net_arch=[256, 256],
+                fixed_log_std=args.fixed_log_std,
+                log_std_init=log_std_init,
+            ),
             env=None,
-            learning_rate=1e-4,
+            learning_rate=args.lr,
 
             # learning_rate=dict(
             #     actor=1e-4,
@@ -102,7 +190,7 @@ if __name__ == '__main__':
             q_value_bound=1,
             optimize_memory_usage=True,
             buffer_size=150_000,  # We only conduct experiment less than 50K steps
-            learning_starts=100,  # The number of steps before
+            learning_starts=args.learning_starts,  # The number of steps before
             batch_size=128,  # Reduce the batch size for real-time copilot
             tau=0.005,
             gamma=0.99,
@@ -136,25 +224,81 @@ if __name__ == '__main__':
     train_env = FakeHumanEnv(config=config["env_config"], )
     train_env = Monitor(env=train_env, filename=str(trial_dir))
     # Store all shared control data to the files.
-    train_env = SharedControlMonitor(env=train_env, folder=trial_dir / "data", prefix=trial_name)
+
+    # TODO: FIXME:
+    # TODO: FIXME:
+    # TODO: FIXME:
+    # TODO: FIXME: should add back when human experiemetn.
+    # train_env = SharedControlMonitor(env=train_env, folder=trial_dir / "data", prefix=trial_name)
+
+
     config["algo"]["env"] = train_env
     assert config["algo"]["env"] is not None
 
     # ===== Also build the eval env =====
-    def _make_eval_env():
+    def _make_eval_env(use_render=False):
         eval_env_config = dict(
-            use_render=False,  # Open the interface
+            use_render=use_render,  # Open the interface
             manual_control=False,  # Allow receiving control signal from external device
             start_seed=1000,
             horizon=1500,
+
+
+# start_seed=1024,
+#             num_scenarios=1,
+#             free_level=-1000,
+#             expert_deterministic=True,
         )
         from pvp.experiments.metadrive.human_in_the_loop_env import HumanInTheLoopEnv
         from pvp.sb3.common.monitor import Monitor
+
         eval_env = HumanInTheLoopEnv(config=eval_env_config)
+        # eval_env = FakeHumanEnv(config=eval_env_config)
+
         eval_env = Monitor(env=eval_env, filename=str(trial_dir))
         return eval_env
 
+
+    if args.eval:
+        eval_env = SubprocVecEnv([lambda: _make_eval_env(True)])
+        # eval_env = SubprocVecEnv([lambda: _make_eval_env(False)])
+        config["algo"]["learning_rate"] = 0.0
+        config["algo"]["train_freq"] = (1, "step")
+
+
+        model = PVPTD3CPL.load(args.ckpt, **config["algo"])
+        # model = PVPTD3CPL(**config["algo"])
+
+        model.learn(
+            # training
+            total_timesteps=50_000,
+            callback=None,
+            reset_num_timesteps=True,
+
+            # eval
+            # eval_env=None,
+            # eval_freq=-1,
+            # n_eval_episodes=2,
+            # eval_log_path=None,
+
+            # eval
+            eval_env=eval_env,
+            eval_freq=1,
+            n_eval_episodes=500,
+            eval_log_path=str(trial_dir),
+
+            # logging
+            tb_log_name=experiment_batch_name,
+            log_interval=1,
+            save_buffer=False,
+            load_buffer=False,
+
+            eval_deterministic=not args.eval_stochastic,
+        )
+        exit(0)
+
     eval_env = SubprocVecEnv([_make_eval_env])
+    # eval_env = None
 
     # ===== Setup the callbacks =====
     save_freq = 500  # Number of steps per model checkpoint
@@ -174,7 +318,14 @@ if __name__ == '__main__':
     callbacks = CallbackList(callbacks)
 
     # ===== Setup the training algorithm =====
-    model = PVPTD3CPL(**config["algo"])
+    algo_cls = PVPRealTD3CPL if real_td3 else PVPTD3CPL
+    if args.ckpt:
+        from pvp.sb3.common.save_util import load_from_zip_file
+        model = algo_cls(**config["algo"])
+        data, params, pytorch_variables = load_from_zip_file(args.ckpt, device=model.device, print_system_info=False)
+        model.set_parameters(params, exact_match=True, device=model.device)
+    else:
+        model = algo_cls(**config["algo"])
 
     # ===== Launch training =====
     model.learn(
@@ -191,8 +342,8 @@ if __name__ == '__main__':
 
         # eval
         eval_env=eval_env,
-        eval_freq=500,
-        n_eval_episodes=10,
+        eval_freq=args.eval_freq,
+        n_eval_episodes=args.n_eval_episodes,
         eval_log_path=str(trial_dir),
 
         # logging

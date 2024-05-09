@@ -17,8 +17,7 @@ HUMAN_IN_THE_LOOP_ENV_CONFIG = {
     "start_seed": 100,  # We will use the map 100~150 as the default training environment.
     "traffic_density": 0.06,
 
-    # Reward and cost setting:
-    "cost_to_reward": True,  # Cost will be negated and added to the reward. Useless in PVP.
+    # Reward and cost setting:    "cost_to_reward": True,  # Cost will be negated and added to the reward. Useless in PVP.
     "cos_similarity": False,  # If True, the takeover cost will be the cos sim between a_h and a_n. Useless in PVP.
 
     # Set up the control device. Default to use keyboard with the pop-up interface.
@@ -32,7 +31,9 @@ HUMAN_IN_THE_LOOP_ENV_CONFIG = {
         "show_dest_mark": True,  # Show the destination in a cube.
         "show_line_to_dest": True,  # Show the line to the destination.
         "show_line_to_navi_mark": True,  # Show the line to next navigation checkpoint.
-    }
+    },
+
+    "horizon": 1500,
 }
 
 
@@ -72,7 +73,7 @@ class HumanInTheLoopEnv(SafeMetaDriveEnv):
         last_t = self.takeover
         self.takeover = shared_control_policy.takeover if hasattr(shared_control_policy, "takeover") else False
         engine_info["takeover_start"] = True if not last_t and self.takeover else False
-        engine_info["takeover"] = self.takeover and not engine_info["takeover_start"]
+        engine_info["takeover"] = self.takeover
         condition = engine_info["takeover_start"] if self.config["only_takeover_start_cost"] else self.takeover
         if not condition:
             engine_info["takeover_cost"] = 0
@@ -80,8 +81,6 @@ class HumanInTheLoopEnv(SafeMetaDriveEnv):
             cost = self.get_takeover_cost(engine_info)
             self.total_takeover_cost += cost
             engine_info["takeover_cost"] = cost
-        self.total_takeover_count += 1 if self.takeover else 0
-        engine_info["total_takeover_count"] = self.total_takeover_count
         engine_info["total_takeover_cost"] = self.total_takeover_cost
         engine_info["native_cost"] = engine_info["cost"]
         engine_info["episode_native_cost"] = self.episode_cost
@@ -119,6 +118,9 @@ class HumanInTheLoopEnv(SafeMetaDriveEnv):
             )
 
         self.total_steps += 1
+
+        self.total_takeover_count += 1 if self.takeover else 0
+        ret[-1]["total_takeover_count"] = self.total_takeover_count
 
         return ret
 
