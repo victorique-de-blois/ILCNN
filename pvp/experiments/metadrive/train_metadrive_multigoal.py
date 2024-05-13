@@ -9,6 +9,7 @@ from pvp.sb3.common.wandb_callback import WandbCallback
 from pvp.sb3.td3.td3 import TD3, ReplayBuffer
 from pvp.sb3.td3.policies import TD3Policy
 from pvp.sb3.common.vec_env.subproc_vec_env import SubprocVecEnv
+from pvp.sb3.common.vec_env.dummy_vec_env import DummyVecEnv
 # from drivingforce.human_in_the_loop.common import baseline_eval_config
 
 from pvp.utils.utils import get_time_str
@@ -32,7 +33,19 @@ def make_train_env():
 
 
 def make_eval_env():
-    return make_train_env()
+    from metadrive.envs.multigoal_intersection import MultiGoalIntersectionEnv
+    from metadrive.envs.gym_wrapper import create_gym_wrapper
+
+    env_config = dict(
+        use_render=False,
+        manual_control=False,
+        vehicle_config=dict(show_lidar=False, show_navi_mark=True, show_line_to_navi_mark=True),
+        accident_prob=0.0,
+        decision_repeat=5,
+        horizon=500,  # to speed up training
+    )
+
+    return create_gym_wrapper(MultiGoalIntersectionEnv)(env_config)
 
 
 # def make_eval_env(log_dir):
@@ -109,16 +122,13 @@ if __name__ == '__main__':
     )
 
     # ===== Setup the training environment =====
-    # train_env = HumanInTheLoopEnv(config=config["env_config"], )
     train_env = make_train_env()
-
-
-    # eval_env = SubprocVecEnv([make_eval_env])
-    eval_env = None
-
     train_env = Monitor(env=train_env, filename=log_dir)
     config["algo"]["env"] = train_env
     assert config["algo"]["env"] is not None
+
+    # eval_env = DummyVecEnv([make_eval_env])
+    eval_env = None
 
     # ===== Setup the callbacks =====
     callbacks = [
@@ -152,7 +162,8 @@ if __name__ == '__main__':
 
         # eval
         eval_env=eval_env,
-        eval_freq=5000,
+        # eval_freq=5000,
+        eval_freq=1,
         n_eval_episodes=30,
         eval_log_path=log_dir,
 
