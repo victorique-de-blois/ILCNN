@@ -48,7 +48,8 @@ if __name__ == '__main__':
     parser.add_argument("--wandb", action="store_true", help="Set to True to upload stats to wandb.")
     parser.add_argument("--eval", action="store_true")
     parser.add_argument("--seed", default=0, type=int, help="The random seed.")
-    parser.add_argument("--penalty", default=5, type=int)
+    parser.add_argument("--penalty", default=2.0, type=float)
+    parser.add_argument("--driving_reward", default=1.0, type=float)
     args = parser.parse_args()
 
     # ===== Setup some meta information =====
@@ -80,11 +81,11 @@ if __name__ == '__main__':
             replay_buffer_kwargs=dict(),
             policy_kwargs=dict(net_arch=[256, 256]),
             env=None,
-            learning_rate=1e-4,
+            learning_rate=1e-5,
             optimize_memory_usage=True,
 
             learning_starts=10000 if not args.eval else 0,  ###
-            batch_size=256,
+            batch_size=128,
             tau=0.005,
             gamma=0.99,
             # train_freq=1,
@@ -121,11 +122,13 @@ if __name__ == '__main__':
             manual_control=False,
             vehicle_config=dict(show_lidar=False, show_navi_mark=True, show_line_to_navi_mark=True),
             accident_prob=0.0,
+            traffic_density=0.0,
             decision_repeat=5,
             horizon=500,  # to speed up training
             crash_object_penalty=args.penalty,
             crash_vehicle_penalty=args.penalty,
             out_of_road_penalty=args.penalty,
+            driving_reward=args.driving_reward,
         )
 
         return create_gym_wrapper(MultiGoalIntersectionEnv)(env_config)
