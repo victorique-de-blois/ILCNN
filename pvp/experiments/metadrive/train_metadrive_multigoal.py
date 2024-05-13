@@ -16,36 +16,21 @@ from pvp.utils.utils import get_time_str
 
 
 
-def make_train_env():
-    from metadrive.envs.multigoal_intersection import MultiGoalIntersectionEnv
-    from metadrive.envs.gym_wrapper import create_gym_wrapper
 
-    env_config = dict(
-        use_render=False,
-        manual_control=False,
-        vehicle_config=dict(show_lidar=False, show_navi_mark=True, show_line_to_navi_mark=True),
-        accident_prob=0.0,
-        decision_repeat=5,
-        horizon=500,  # to speed up training
-    )
-
-    return create_gym_wrapper(MultiGoalIntersectionEnv)(env_config)
-
-
-def make_eval_env():
-    from metadrive.envs.multigoal_intersection import MultiGoalIntersectionEnv
-    from metadrive.envs.gym_wrapper import create_gym_wrapper
-
-    env_config = dict(
-        use_render=False,
-        manual_control=False,
-        vehicle_config=dict(show_lidar=False, show_navi_mark=True, show_line_to_navi_mark=True),
-        accident_prob=0.0,
-        decision_repeat=5,
-        horizon=500,  # to speed up training
-    )
-
-    return create_gym_wrapper(MultiGoalIntersectionEnv)(env_config)
+# def make_eval_env():
+#     from metadrive.envs.multigoal_intersection import MultiGoalIntersectionEnv
+#     from metadrive.envs.gym_wrapper import create_gym_wrapper
+#
+#     env_config = dict(
+#         use_render=False,
+#         manual_control=False,
+#         vehicle_config=dict(show_lidar=False, show_navi_mark=True, show_line_to_navi_mark=True),
+#         accident_prob=0.0,
+#         decision_repeat=5,
+#         horizon=500,  # to speed up training
+#     )
+#
+#     return create_gym_wrapper(MultiGoalIntersectionEnv)(env_config)
 
 
 # def make_eval_env(log_dir):
@@ -59,8 +44,11 @@ def make_eval_env():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--exp_name", default="TEST", type=str, help="The experiment name.")
+    parser.add_argument("--ckpt", default="", type=str)
     parser.add_argument("--wandb", action="store_true", help="Set to True to upload stats to wandb.")
+    parser.add_argument("--eval", action="store_true")
     parser.add_argument("--seed", default=0, type=int, help="The random seed.")
+    parser.add_argument("--penalty", default=5, type=int)
     args = parser.parse_args()
 
     # ===== Setup some meta information =====
@@ -95,7 +83,7 @@ if __name__ == '__main__':
             learning_rate=1e-4,
             optimize_memory_usage=True,
 
-            learning_starts=10000,  ###
+            learning_starts=10000 if not args.eval else 0,  ###
             batch_size=100,  # Reduce the batch size for real-time copilot
             tau=0.005,
             gamma=0.99,
@@ -123,7 +111,27 @@ if __name__ == '__main__':
     )
 
     # ===== Setup the training environment =====
-    train_env = make_train_env()
+
+    def make_train_env(render=False):
+        from metadrive.envs.multigoal_intersection import MultiGoalIntersectionEnv
+        from metadrive.envs.gym_wrapper import create_gym_wrapper
+
+        env_config = dict(
+            use_render=render,
+            manual_control=False,
+            vehicle_config=dict(show_lidar=False, show_navi_mark=True, show_line_to_navi_mark=True),
+            accident_prob=0.0,
+            decision_repeat=5,
+            horizon=500,  # to speed up training
+            crash_object_penalty=args.penalty,
+            crash_vehicle_penalty=args.penalty,
+            out_of_road_penalty=args.penalty,
+        )
+
+        return create_gym_wrapper(MultiGoalIntersectionEnv)(env_config)
+
+
+    train_env = make_train_env(render=args.eval)
     train_env = Monitor(env=train_env, filename=log_dir)
     config["algo"]["env"] = train_env
     assert config["algo"]["env"] is not None
@@ -140,21 +148,30 @@ if __name__ == '__main__':
             save_path=osp.join(log_dir, "models")
         )
     ]
-    # if use_wandb:
-    callbacks.append(
-        WandbCallback(
-            trial_name=trial_name,
-            exp_name=experiment_batch_name,
-            team_name=team_name,
-            project_name=project_name,
-            config=config
+    if use_wandb:
+        callbacks.append(
+            WandbCallback(
+                trial_name=trial_name,
+                exp_name=experiment_batch_name,
+                team_name=team_name,
+                project_name=project_name,
+                config=config
+            )
         )
-    )
 
     callbacks = CallbackList(callbacks)
 
+    if args.eval:
+        # eval_env = SubprocVecEnv([])
+        # eval_env = SubprocVecEnv([lambda: _make_eval_env(False)])
+        config["algo"]["learning_rate"] = 0.0
+        config["algo"]["train_freq"] = (1, "step")
+
     # ===== Setup the training algorithm =====
-    model = TD3(**config["algo"])
+    if args.ckpt:
+        model = TD3.load(args.ckpt, **config["algo"])
+    else:
+        model = TD3(**config["algo"])
 
     # ===== Launch training =====
     model.learn(
