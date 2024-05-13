@@ -85,7 +85,7 @@ if __name__ == '__main__':
             optimize_memory_usage=True,
 
             learning_starts=10000 if not args.eval else 0,  ###
-            batch_size=128,
+            batch_size=256,
             tau=0.005,
             gamma=0.99,
             # train_freq=1,
@@ -120,7 +120,13 @@ if __name__ == '__main__':
         env_config = dict(
             use_render=render,
             manual_control=False,
-            vehicle_config=dict(show_lidar=False, show_navi_mark=True, show_line_to_navi_mark=True),
+            vehicle_config=dict(
+                show_navi_mark = True,
+                show_line_to_navi_mark = True,
+                show_lidar = False,
+                show_side_detector = True,
+                show_lane_line_detector = True,
+            ),
             accident_prob=0.0,
             traffic_density=0.0,
             decision_repeat=5,

@@ -84,7 +84,7 @@ if __name__ == '__main__':
             env=None,
 
             # ===== Training =====
-            learning_rate=dict(actor=3e-5, critic=3e-5, entropy=3e-5),
+            learning_rate=dict(actor=1e-5, critic=1e-5, entropy=1e-5),
             # optimization=dict(actor_learning_rate=1e-4, critic_learning_rate=1e-4, entropy_learning_rate=1e-4),
             #
             # prioritized_replay=False,
@@ -95,7 +95,7 @@ if __name__ == '__main__':
             # normalize_actions=True,
 
             learning_starts=10000 if not args.eval else 0,  ###
-            # batch_size=128,
+            batch_size=256,
             # tau=0.005,
             # gamma=0.99,
             # train_freq=1,

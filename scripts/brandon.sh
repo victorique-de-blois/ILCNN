@@ -14,51 +14,64 @@ seeds=(0 100 200 300 400 500 600 700)
 #done
 
 
-CUDA_VISIBLE_DEVICES=1 \
-nohup python pvp/experiments/metadrive/train_metadrive_multigoal_sac.py \
+CUDA_VISIBLE_DEVICES=0 \
+nohup python pvp/experiments/metadrive/train_metadrive_multigoal.py \
 --wandb \
 --seed=0 \
---exp_name=sac_multigoal_pen2_rew1 \
+--exp_name=td3_multigoal_pen2_rew2-v2 \
 --penalty=2 \
---driving_reward=1.0 \
-> "brandon-35.log" 2>&1 &
-
-
-CUDA_VISIBLE_DEVICES=1 \
-nohup python pvp/experiments/metadrive/train_metadrive_multigoal_sac.py \
---wandb \
---seed=0 \
---exp_name=sac_multigoal_pen2_rew2 \
---penalty=2 \
---driving_reward=2.0 \
-> "brandon-83111.log" 2>&1 &
+--driving_reward=2 \
+> "brandon-31111.log" 2>&1 &
 
 
 CUDA_VISIBLE_DEVICES=0 \
 nohup python pvp/experiments/metadrive/train_metadrive_multigoal.py \
 --wandb \
 --seed=0 \
---exp_name=td3_multigoal_pen2_rew5 \
+--exp_name=td3_multigoal_pen2_rew5-v2 \
 --penalty=2 \
 --driving_reward=5.0 \
-> "brandon-31111.log" 2>&1 &
+> "brandon-3111.log" 2>&1 &
+
+
+CUDA_VISIBLE_DEVICES=0 \
+nohup python pvp/experiments/metadrive/train_metadrive_multigoal.py \
+--wandb \
+--seed=0 \
+--exp_name=td3_multigoal_pen2_rew10-v2 \
+--penalty=2 \
+--driving_reward=10.0 \
+> "brandon-311.log" 2>&1 &
+
 
 
 CUDA_VISIBLE_DEVICES=1 \
 nohup python pvp/experiments/metadrive/train_metadrive_multigoal_sac.py \
 --wandb \
 --seed=0 \
---exp_name=sac_multigoal_pen2_rew5 \
+--exp_name=sac_multigoal_pen2_rew5-v2 \
 --penalty=2 \
 --driving_reward=5.0 \
 > "brandon-33331.log" 2>&1 &
 
 
+
 CUDA_VISIBLE_DEVICES=1 \
 nohup python pvp/experiments/metadrive/train_metadrive_multigoal_sac.py \
 --wandb \
 --seed=0 \
---exp_name=sac_multigoal_pen2_rew10 \
+--exp_name=sac_multigoal_pen2_rew2-v2 \
+--penalty=2 \
+--driving_reward=2.0 \
+> "brandon-3331.log" 2>&1 &
+
+
+CUDA_VISIBLE_DEVICES=1 \
+nohup python pvp/experiments/metadrive/train_metadrive_multigoal_sac.py \
+--wandb \
+--seed=0 \
+--exp_name=sac_multigoal_pen2_rew10-v2 \
 --penalty=2 \
 --driving_reward=10.0 \
-> "brandon-30444.log" 2>&1 &
+> "brandon-331.log" 2>&1 &
+
