@@ -22,6 +22,7 @@ from pvp.sb3.common.vec_env import VecEnv
 from pvp.sb3.her.her_replay_buffer import HerReplayBuffer
 import gymnasium
 
+
 class OffPolicyAlgorithm(BaseAlgorithm):
     """
     The base for Off-Policy algorithms (ex: SAC/TD3)
@@ -283,7 +284,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
         log_path: Optional[str] = None,
         reset_num_timesteps: bool = True,
         tb_log_name: str = "run",
-            eval_deterministic=True,
+        eval_deterministic=True,
     ) -> Tuple[int, BaseCallback]:
         """
         cf `BaseAlgorithm`.
@@ -602,7 +603,9 @@ class OffPolicyAlgorithm(BaseAlgorithm):
                 self.actor.reset_noise(env.num_envs)
 
             # Select action randomly or according to policy
-            actions, buffer_actions = self._sample_action(learning_starts, action_noise, env.num_envs, deterministic=deterministic)
+            actions, buffer_actions = self._sample_action(
+                learning_starts, action_noise, env.num_envs, deterministic=deterministic
+            )
 
             # Rescale and perform action
             new_obs, rewards, dones, infos = env.step(actions)

@@ -42,7 +42,7 @@ class PVPTD3(TD3):
         self.extra_config = {}
         for k in ["no_done_for_positive", "no_done_for_negative", "reward_0_for_positive", "reward_0_for_negative",
                   "reward_n2_for_intervention", "reward_1_for_all", "use_weighted_reward", "remove_negative",
-                  "adaptive_batch_size"]:
+                  "adaptive_batch_size", "add_bc_loss"]:
             if k in kwargs:
                 v = kwargs.pop(k)
                 assert v in ["True", "False"]
@@ -452,6 +452,10 @@ class PVPES(PVPTD3):
                 actor_loss = -self.critic.q1_forward(replay_data.observations, self.actor(replay_data.observations
                                                                                           )).mean()
 
+                if self.extra_config["add_bc_loss"] and replay_data_human.dones.shape[0] > 0:
+                    bc_loss = F.mse_loss(replay_data_human.actions_behavior, self.actor(replay_data_human.observations))
+                    actor_loss += bc_loss
+
                 # Optimize the actor
                 self.actor.optimizer.zero_grad()
                 actor_loss.backward()
@@ -467,4 +471,3 @@ class PVPES(PVPTD3):
         self.logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
         for key, values in stat_recorder.items():
             self.logger.record("train/{}".format(key), np.mean(values))
-

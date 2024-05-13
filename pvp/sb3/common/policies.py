@@ -35,6 +35,7 @@ from pvp.sb3.common.utils import get_device, is_vectorized_observation, obs_as_t
 
 import gymnasium
 
+
 class BaseModel(nn.Module, ABC):
     """
     The base model object: makes predictions in response to observations.
@@ -598,7 +599,6 @@ class ActorCriticPolicy(BasePolicy):
 
         else:
             raise ValueError()
-
 
     def forward(self, obs: th.Tensor, deterministic: bool = False) -> Tuple[th.Tensor, th.Tensor, th.Tensor]:
         """

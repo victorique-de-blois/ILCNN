@@ -356,8 +356,11 @@ class HACOReplayBufferEpisode(ReplayBuffer):
             self.pos += 1
 
     def sample(
-        self, batch_size: int, env: Optional[VecNormalize] = None, return_all=False,
-            last_episodes = None
+        self,
+        batch_size: int,
+        env: Optional[VecNormalize] = None,
+        return_all=False,
+        last_episodes=None
     ) -> HACODictReplayBufferSamples:
         """
         We will return everything we have!

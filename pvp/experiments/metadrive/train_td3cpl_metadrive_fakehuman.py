@@ -4,10 +4,9 @@ from pathlib import Path
 import uuid
 import numpy as np
 
-
 from pvp.experiments.metadrive.egpo.fakehuman_env import FakeHumanEnv
 from pvp.experiments.metadrive.human_in_the_loop_env import HumanInTheLoopEnv
-from pvp.pvp_td3_cpl import PVPTD3CPL
+from pvp.pvp_td3_cpl import PVPTD3CPL, PVPTD3CPLPolicy
 from pvp.pvp_td3_cpl_real import PVPRealTD3Policy, PVPRealTD3CPL
 from pvp.sb3.common.callbacks import CallbackList, CheckpointCallback
 from pvp.sb3.common.monitor import Monitor
@@ -49,12 +48,15 @@ if __name__ == '__main__':
     parser.add_argument("--remove_loss_1", type=str, default="False")
     parser.add_argument("--remove_loss_3", type=str, default="False")
     parser.add_argument("--remove_loss_6", type=str, default="False")
-    parser.add_argument("--only_bc_loss", type=str, default="False")
+    parser.add_argument("--add_bc_loss", type=str, default="False")
+    parser.add_argument("--add_bc_loss_only_interventions", type=str, default="False")
     parser.add_argument("--use_target_policy", type=str, default="False")
     parser.add_argument("--use_target_policy_only_overwrite_takeover", type=str, default="False")
     parser.add_argument("--num_comparisons", type=int, default=64)
     parser.add_argument("--num_steps_per_chunk", type=int, default=64)
     parser.add_argument("--max_comparisons", type=int, default=10000)
+    parser.add_argument("--n_eval_episodes", type=int, default=50)
+    parser.add_argument("--eval_freq", type=int, default=500)
     parser.add_argument("--hard_reset", type=int, default=-1)
     parser.add_argument("--learning_starts", type=int, default=0)
     parser.add_argument("--cpl_bias", type=float, default=0.5)
@@ -65,7 +67,9 @@ if __name__ == '__main__':
     parser.add_argument("--log_std_init", type=float, default=0.0)
 
     parser.add_argument("--fixed_log_std", action="store_true")
+    parser.add_argument("--eval_stochastic", action="store_true")
     parser.add_argument("--real_td3", action="store_true")
+    parser.add_argument("--expert_deterministic", action="store_true")
 
     parser.add_argument("--eval", action="store_true")
     parser.add_argument("--ckpt", type=str, default="")
@@ -134,17 +138,17 @@ if __name__ == '__main__':
             # FakeHumanEnv config:
             free_level=free_level,
             use_render=False,
+            expert_deterministic=args.expert_deterministic,
         ),
 
         # Algorithm config
         algo=dict(
-
             use_chunk_adv=args.use_chunk_adv,
             num_comparisons=args.num_comparisons,
             num_steps_per_chunk=args.num_steps_per_chunk,
             prioritized_buffer=args.prioritized_buffer,
             training_deterministic=args.training_deterministic,
-            only_bc_loss=args.only_bc_loss,
+            add_bc_loss=args.add_bc_loss,
             cpl_bias=args.cpl_bias,
             add_loss_5=args.add_loss_5,
             add_loss_5_inverse=args.add_loss_5_inverse,
@@ -159,7 +163,7 @@ if __name__ == '__main__':
             max_comparisons=args.max_comparisons,
             use_target_policy_only_overwrite_takeover=args.use_target_policy_only_overwrite_takeover,
             bc_loss_weight=args.bc_loss_weight,
-
+            add_bc_loss_only_interventions=args.add_bc_loss_only_interventions,
             use_balance_sample=True,
             policy=MlpPolicy if not real_td3 else PVPRealTD3Policy,
             replay_buffer_class=HACOReplayBuffer,  # TODO: USELESS
@@ -224,7 +228,6 @@ if __name__ == '__main__':
     # TODO: FIXME: should add back when human experiemetn.
     # train_env = SharedControlMonitor(env=train_env, folder=trial_dir / "data", prefix=trial_name)
 
-
     config["algo"]["env"] = train_env
     assert config["algo"]["env"] is not None
 
@@ -236,10 +239,10 @@ if __name__ == '__main__':
             start_seed=1000,
             horizon=1500,
 
-
-# start_seed=1024,
-#             num_scenarios=1,
-#             free_level=-1000
+            # start_seed=1024,
+            #             num_scenarios=1,
+            #             free_level=-1000,
+            #             expert_deterministic=True,
         )
         from pvp.experiments.metadrive.human_in_the_loop_env import HumanInTheLoopEnv
         from pvp.sb3.common.monitor import Monitor
@@ -250,13 +253,14 @@ if __name__ == '__main__':
         eval_env = Monitor(env=eval_env, filename=str(trial_dir))
         return eval_env
 
-
     if args.eval:
         eval_env = SubprocVecEnv([lambda: _make_eval_env(True)])
         # eval_env = SubprocVecEnv([lambda: _make_eval_env(False)])
         config["algo"]["learning_rate"] = 0.0
         config["algo"]["train_freq"] = (1, "step")
+
         model = PVPTD3CPL.load(args.ckpt, **config["algo"])
+        # model = PVPTD3CPL(**config["algo"])
 
         model.learn(
             # training
@@ -281,12 +285,12 @@ if __name__ == '__main__':
             log_interval=1,
             save_buffer=False,
             load_buffer=False,
-
-            eval_deterministic=True,
+            eval_deterministic=not args.eval_stochastic,
         )
         exit(0)
 
     eval_env = SubprocVecEnv([_make_eval_env])
+    # eval_env = None
 
     # ===== Setup the callbacks =====
     save_freq = 500  # Number of steps per model checkpoint
@@ -330,8 +334,8 @@ if __name__ == '__main__':
 
         # eval
         eval_env=eval_env,
-        eval_freq=500,
-        n_eval_episodes=50,
+        eval_freq=args.eval_freq,
+        n_eval_episodes=args.n_eval_episodes,
         eval_log_path=str(trial_dir),
 
         # logging
