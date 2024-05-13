@@ -58,7 +58,7 @@ def make_eval_env():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--exp-name", default="TEST", type=str, help="The experiment name.")
+    parser.add_argument("--exp_name", default="TEST", type=str, help="The experiment name.")
     parser.add_argument("--wandb", action="store_true", help="Set to True to upload stats to wandb.")
     parser.add_argument("--seed", default=0, type=int, help="The random seed.")
     args = parser.parse_args()
@@ -73,6 +73,7 @@ if __name__ == '__main__':
     project_name = "brandon"
     team_name = "drivingforce"
 
+    experiment_batch_name = exp_name
     trial_name = "{}_seed{}_{}".format(exp_name, seed, get_time_str())
     log_dir = osp.join("runs", exp_name, trial_name)
     os.makedirs(osp.join("runs", exp_name), exist_ok=True)
@@ -139,15 +140,17 @@ if __name__ == '__main__':
             save_path=osp.join(log_dir, "models")
         )
     ]
-    if use_wandb:
-        callbacks.append(
-            WandbCallback(
-                trial_name=trial_name,
-                exp_name=exp_name,
-                project_name=project_name,
-                config=config
-            )
+    # if use_wandb:
+    callbacks.append(
+        WandbCallback(
+            trial_name=trial_name,
+            exp_name=experiment_batch_name,
+            team_name=team_name,
+            project_name=project_name,
+            config=config
         )
+    )
+
     callbacks = CallbackList(callbacks)
 
     # ===== Setup the training algorithm =====
