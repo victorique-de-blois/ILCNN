@@ -84,7 +84,7 @@ if __name__ == '__main__':
             optimize_memory_usage=True,
 
             learning_starts=10000 if not args.eval else 0,  ###
-            batch_size=100,  # Reduce the batch size for real-time copilot
+            batch_size=256,
             tau=0.005,
             gamma=0.99,
             # train_freq=1,
