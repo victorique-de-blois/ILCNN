@@ -161,9 +161,9 @@ if __name__ == '__main__':
 
                 # Sample a goal from the goal set
                 p = {
-                    "right_turn": 0,
-                    "left_turn": 1,
-                    "go_straight": 0,
+                    "right_turn": 0.33,
+                    "left_turn": 0.33,
+                    "go_straight": 0.34,
                 }
                 self.current_goal = np.random.choice(list(p.keys()), p=list(p.values()))
 
