@@ -130,7 +130,7 @@ if __name__ == '__main__':
         env_config = dict(
             use_render=render,
             manual_control=False,
-            vehicle_config=dict(show_lidar=False, show_navi_mark=True, show_line_to_navi_mark=True),
+            vehicle_config=dict(show_lidar=False, show_navi_mark=True, show_line_to_navi_mark=True, show_line_to_dest=True, show_dest_mark=True),
             accident_prob=0.0,
             traffic_density=0.0,
             decision_repeat=5,
