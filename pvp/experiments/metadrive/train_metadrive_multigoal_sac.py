@@ -172,9 +172,7 @@ if __name__ == '__main__':
             decision_repeat=5,
             horizon=500,  # to speed up training
 
-            out_of_road_penalty=args.penalty,
-            crash_sidewalk_penalty=args.penalty,
-            wrong_way_penalty=10,
+            out_of_route_penalty=args.penalty,
         )
 
         return create_gym_wrapper(MultiGoalWrapped)(env_config)

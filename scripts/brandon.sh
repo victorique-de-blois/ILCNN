@@ -22,7 +22,7 @@ do
     nohup python pvp/experiments/metadrive/train_metadrive_multigoal.py \
     --wandb \
     --seed=0 \
-    --exp_name=td3_multigoal_pen${penalty[$i]}-v5 \
+    --exp_name=td3_multigoal_pen${penalty[$i]}-v6 \
     --penalty=${penalty[$i]} \
     > "brandon-td3-${penalty[$i]}.log" 2>&1 &
 done
@@ -37,7 +37,7 @@ do
     nohup python pvp/experiments/metadrive/train_metadrive_multigoal_sac.py \
     --wandb \
     --seed=0 \
-    --exp_name=sac_multigoal_pen${penalty[$i]}-v5 \
+    --exp_name=sac_multigoal_pen${penalty[$i]}-v6 \
     --penalty=${penalty[$i]} \
     > "brandon-sac-${penalty[$i]}.log" 2>&1 &
 done
