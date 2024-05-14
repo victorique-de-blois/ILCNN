@@ -40,8 +40,8 @@ class MultiGoalWrapped(MultiGoalIntersectionEnv):
 
         # Sample a goal from the goal set
         p = {
-            "right_turn": 0.45,
-            "left_turn": 0.45,
+            "right_turn": 0.4,
+            "left_turn": 0.5,
             "go_straight": 0.1,
         }
         self.current_goal = np.random.choice(list(p.keys()), p=list(p.values()))
