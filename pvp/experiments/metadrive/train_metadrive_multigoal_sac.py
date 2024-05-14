@@ -1,7 +1,7 @@
 import argparse
 import os
 import os.path as osp
-
+import numpy as np
 # from pvp.train_metadrive.human_in_the_loop_env import HumanInTheLoopEnv
 from pvp.sb3.common.callbacks import CallbackList, CheckpointCallback
 from pvp.sb3.common.monitor import Monitor
@@ -15,6 +15,44 @@ from pvp.sb3.common.vec_env.dummy_vec_env import DummyVecEnv
 
 from pvp.utils.utils import get_time_str
 
+from metadrive.envs.multigoal_intersection import MultiGoalIntersectionEnv
+from metadrive.envs.gym_wrapper import create_gym_wrapper
+
+class MultiGoalWrapped(MultiGoalIntersectionEnv):
+    current_goal = None
+
+    def step(self, actions):
+        o, r, tm, tc, i = super().step(actions)
+
+        o = i['obs/goals/{}'.format(self.current_goal)]
+        r = i['reward/goals/{}'.format(self.current_goal)]
+        i['route_completion'] = i['route_completion/goals/{}'.format(self.current_goal)]
+        i['arrive_dest'] = i['arrive_dest/goals/{}'.format(self.current_goal)]
+        i['reward/goals/default'] = i['reward/goals/{}'.format(self.current_goal)]
+        i['route_completion/goals/default'] = i['route_completion/goals/{}'.format(self.current_goal)]
+        i['arrive_dest/goals/default'] = i['arrive_dest/goals/{}'.format(self.current_goal)]
+
+        return o, r, tm, tc, i
+
+    def reset(self, *args, **kwargs):
+        o, i = super().reset(*args, **kwargs)
+
+        # Sample a goal from the goal set
+        p = {
+            "right_turn": 0.45,
+            "left_turn": 0.45,
+            "go_straight": 0.1,
+        }
+        self.current_goal = np.random.choice(list(p.keys()), p=list(p.values()))
+
+        o = i['obs/goals/{}'.format(self.current_goal)]
+        i['route_completion'] = i['route_completion/goals/{}'.format(self.current_goal)]
+        i['arrive_dest'] = i['arrive_dest/goals/{}'.format(self.current_goal)]
+        i['reward/goals/default'] = i['reward/goals/{}'.format(self.current_goal)]
+        i['route_completion/goals/default'] = i['route_completion/goals/{}'.format(self.current_goal)]
+        i['arrive_dest/goals/default'] = i['arrive_dest/goals/{}'.format(self.current_goal)]
+
+        return o, i
 
 
 
@@ -124,8 +162,6 @@ if __name__ == '__main__':
     # ===== Setup the training environment =====
 
     def make_train_env(render=False):
-        from metadrive.envs.multigoal_intersection import MultiGoalIntersectionEnv
-        from metadrive.envs.gym_wrapper import create_gym_wrapper
 
         env_config = dict(
             use_render=render,
@@ -141,7 +177,7 @@ if __name__ == '__main__':
             wrong_way_penalty=10,
         )
 
-        return create_gym_wrapper(MultiGoalIntersectionEnv)(env_config)
+        return create_gym_wrapper(MultiGoalWrapped)(env_config)
 
 
     train_env = make_train_env(render=args.eval)
