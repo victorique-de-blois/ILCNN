@@ -81,10 +81,10 @@ if __name__ == '__main__':
             replay_buffer_kwargs=dict(),
             policy_kwargs=dict(net_arch=[256, 256]),
             env=None,
-            learning_rate=1e-5,
+            learning_rate=1e-4,
             optimize_memory_usage=True,
 
-            learning_starts=10000 if not args.eval else 0,  ###
+            learning_starts=1000 if not args.eval else 0,  ###
             batch_size=256,
             tau=0.005,
             gamma=0.99,
@@ -131,10 +131,11 @@ if __name__ == '__main__':
             traffic_density=0.0,
             decision_repeat=5,
             horizon=500,  # to speed up training
-            crash_object_penalty=args.penalty,
-            crash_vehicle_penalty=args.penalty,
-            out_of_road_penalty=args.penalty,
+            crash_object_penalty=10,
+            crash_vehicle_penalty=10,
+            out_of_road_penalty=10,
             driving_reward=args.driving_reward,
+            wrong_way_penalty=args.penalty,
         )
 
         return create_gym_wrapper(MultiGoalIntersectionEnv)(env_config)
