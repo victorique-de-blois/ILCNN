@@ -172,6 +172,8 @@ if __name__ == '__main__':
 
             out_of_road_penalty=0.5,
             out_of_route_penalty=0.5,
+
+            map_config=dict(lane_num=2),
         )
 
         return create_gym_wrapper(MultiGoalWrapped)(env_config)
