@@ -168,11 +168,12 @@ if __name__ == '__main__':
             manual_control=False,
             vehicle_config=dict(show_lidar=False, show_navi_mark=True, show_line_to_navi_mark=True, show_line_to_dest=True, show_dest_mark=True),
             accident_prob=0.0,
-            traffic_density=0.0,
+            traffic_density=0.1,
             decision_repeat=5,
             horizon=500,  # to speed up training
 
-            out_of_route_penalty=args.penalty,
+            out_of_road_penalty=0.5,
+            out_of_route_penalty=0.5,
         )
 
         return create_gym_wrapper(MultiGoalWrapped)(env_config)

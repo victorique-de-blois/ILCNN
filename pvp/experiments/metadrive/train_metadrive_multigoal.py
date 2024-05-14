@@ -166,11 +166,12 @@ if __name__ == '__main__':
             ),
             debug=render,
             accident_prob=0.0,
-            traffic_density=0.0,
+            traffic_density=0.1,
             decision_repeat=5,
             horizon=500,  # to speed up training
 
-            out_of_route_penalty=args.penalty,
+            out_of_road_penalty=0.5,
+            out_of_route_penalty=0.5,
         )
 
         return create_gym_wrapper(MultiGoalWrapped)(env_config)
