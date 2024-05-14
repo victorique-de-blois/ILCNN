@@ -164,6 +164,7 @@ if __name__ == '__main__':
                 show_side_detector = True,
                 show_lane_line_detector = True,
             ),
+            debug=render,
             accident_prob=0.0,
             traffic_density=0.0,
             decision_repeat=5,
