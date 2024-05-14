@@ -13,64 +13,31 @@ seeds=(0 100 200 300 400 500 600 700)
 #    > "brandon-seed${seeds[$i]}.log" 2>&1 &
 #done
 
-
-CUDA_VISIBLE_DEVICES=0 \
-nohup python pvp/experiments/metadrive/train_metadrive_multigoal.py \
---wandb \
---seed=0 \
---exp_name=td3_multigoal_pen20_rew2-v3 \
---penalty=20 \
---driving_reward=2 \
-> "brandon-31111.log" 2>&1 &
-
-
-CUDA_VISIBLE_DEVICES=0 \
-nohup python pvp/experiments/metadrive/train_metadrive_multigoal.py \
---wandb \
---seed=0 \
---exp_name=td3_multigoal_pen5_rew2-v3 \
---penalty=5 \
---driving_reward=2 \
-> "brandon-3111.log" 2>&1 &
+# Let's say we want to grid search penalty = 0.5, 1, 2, 5, 10
+# Loop over it:
+penalty=(0.5 1 2 5)
+for i in {0..3}
+do
+    CUDA_VISIBLE_DEVICES=0 \
+    nohup python pvp/experiments/metadrive/train_metadrive_multigoal.py \
+    --wandb \
+    --seed=0 \
+    --exp_name=td3_multigoal_pen${penalty[$i]}-v4 \
+    --penalty=${penalty[$i]} \
+    > "brandon-td3-${penalty[$i]}.log" 2>&1 &
+done
 
 
-CUDA_VISIBLE_DEVICES=0 \
-nohup python pvp/experiments/metadrive/train_metadrive_multigoal.py \
---wandb \
---seed=0 \
---exp_name=td3_multigoal_pen10_rew2-v3 \
---penalty=10 \
---driving_reward=2 \
-> "brandon-3111.log" 2>&1 &
-
-
-
-CUDA_VISIBLE_DEVICES=1 \
-nohup python pvp/experiments/metadrive/train_metadrive_multigoal_sac.py \
---wandb \
---seed=0 \
---exp_name=sac_multigoal_pen2_rew2-v3 \
---penalty=2 \
---driving_reward=2 \
-> "brandon-333.log" 2>&1 &
-
-
-CUDA_VISIBLE_DEVICES=1 \
-nohup python pvp/experiments/metadrive/train_metadrive_multigoal_sac.py \
---wandb \
---seed=0 \
---exp_name=sac_multigoal_pen10_rew2-v3 \
---penalty=10 \
---driving_reward=2 \
-> "brandon-31.log" 2>&1 &
-
-
-CUDA_VISIBLE_DEVICES=1 \
-nohup python pvp/experiments/metadrive/train_metadrive_multigoal_sac.py \
---wandb \
---seed=0 \
---exp_name=sac_multigoal_pen100_rew2-v3 \
---penalty=100 \
---driving_reward=2 \
-> "brandon-331.log" 2>&1 &
-
+# Let's say we want to grid search penalty = 0.5, 1, 2, 5, 10
+# Loop over it:
+penalty=(0.5 1 2 5)
+for i in {0..3}
+do
+    CUDA_VISIBLE_DEVICES=1 \
+    nohup python pvp/experiments/metadrive/train_metadrive_multigoal_sac.py \
+    --wandb \
+    --seed=0 \
+    --exp_name=sac_multigoal_pen${penalty[$i]}-v4 \
+    --penalty=${penalty[$i]} \
+    > "brandon-sac-${penalty[$i]}.log" 2>&1 &
+done

@@ -49,7 +49,7 @@ if __name__ == '__main__':
     parser.add_argument("--eval", action="store_true")
     parser.add_argument("--seed", default=0, type=int, help="The random seed.")
     parser.add_argument("--penalty", default=2.0, type=float)
-    parser.add_argument("--driving_reward", default=1.0, type=float)
+    # parser.add_argument("--driving_reward", default=1.0, type=float)
     args = parser.parse_args()
 
     # ===== Setup some meta information =====
@@ -131,11 +131,10 @@ if __name__ == '__main__':
             traffic_density=0.0,
             decision_repeat=5,
             horizon=500,  # to speed up training
-            crash_object_penalty=10,
-            crash_vehicle_penalty=10,
-            out_of_road_penalty=10,
-            driving_reward=args.driving_reward,
-            wrong_way_penalty=args.penalty,
+
+            out_of_road_penalty=args.penalty,
+            crash_sidewalk_penalty=args.penalty,
+            wrong_way_penalty=10,
         )
 
         return create_gym_wrapper(MultiGoalIntersectionEnv)(env_config)
