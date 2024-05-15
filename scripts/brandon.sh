@@ -15,23 +15,15 @@ seeds=(0 100 200 300 400 500 600 700)
 
 # Let's say we want to grid search penalty = 0.5, 1, 2, 5, 10
 # Loop over it:
-for i in {0..1}
+i=0
+for lr in 1e-3 1e-4 1e-5
 do
     CUDA_VISIBLE_DEVICES=0 \
     nohup python pvp/experiments/metadrive/train_metadrive_multigoal.py \
     --wandb \
     --seed=${seeds[$i]} \
-    --exp_name=td3_multigoal_seed${seeds[$i]}-v7-lanenum2 \
+    --lr=${lr} \
+    --exp_name=td3_multigoal_lr${lr}_seed${seeds[$i]}_addnoise \
     > "brandon-td3-${seeds[$i]}.log" 2>&1 &
 done
 
-
-for i in {0..1}
-do
-    CUDA_VISIBLE_DEVICES=1 \
-    nohup python pvp/experiments/metadrive/train_metadrive_multigoal_sac.py \
-    --wandb \
-    --seed=${seeds[$i]} \
-    --exp_name=sac_multigoal_seed${seeds[$i]}-v7-lanenum2 \
-    > "brandon-sac-${seeds[$i]}.log" 2>&1 &
-done

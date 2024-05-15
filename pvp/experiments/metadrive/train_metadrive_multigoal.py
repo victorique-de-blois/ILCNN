@@ -11,7 +11,7 @@ from pvp.sb3.td3.policies import TD3Policy
 from pvp.sb3.common.vec_env.subproc_vec_env import SubprocVecEnv
 from pvp.sb3.common.vec_env.dummy_vec_env import DummyVecEnv
 # from drivingforce.human_in_the_loop.common import baseline_eval_config
-
+from pvp.sb3.common.noise import NormalActionNoise
 from pvp.utils.utils import get_time_str
 
 from metadrive.envs.multigoal_intersection import MultiGoalIntersectionEnv
@@ -87,7 +87,8 @@ if __name__ == '__main__':
     parser.add_argument("--wandb", action="store_true", help="Set to True to upload stats to wandb.")
     parser.add_argument("--eval", action="store_true")
     parser.add_argument("--seed", default=0, type=int, help="The random seed.")
-    parser.add_argument("--penalty", default=2.0, type=float)
+    # parser.add_argument("--penalty", default=2.0, type=float)
+    parser.add_argument("--lr", default=1e-4, type=float)
     # parser.add_argument("--driving_reward", default=1.0, type=float)
     args = parser.parse_args()
 
@@ -118,20 +119,21 @@ if __name__ == '__main__':
             policy=TD3Policy,
             replay_buffer_class=ReplayBuffer,  ###
             replay_buffer_kwargs=dict(),
-            policy_kwargs=dict(net_arch=[256, 256]),
+            policy_kwargs=dict(net_arch=[400, 300]),
             env=None,
-            learning_rate=1e-4,
+            learning_rate=args.lr,
             optimize_memory_usage=True,
 
-            learning_starts=1000 if not args.eval else 0,  ###
+            learning_starts=10000 if not args.eval else 0,  ###
             batch_size=256,
             tau=0.005,
             gamma=0.99,
-            # train_freq=1,
+            train_freq=1,
+            gradient_steps=1,
+            action_noise=NormalActionNoise(mean=np.zeros([2,]), sigma=0.1 * np.ones([2,])),
             # target_policy_noise=0,
             # policy_delay=1,
 
-            action_noise=None,
             tensorboard_log=log_dir,
             create_eval_env=False,
 
@@ -173,7 +175,7 @@ if __name__ == '__main__':
             out_of_road_penalty=0.5,
             out_of_route_penalty=0.5,
 
-            map_config=dict(lane_num=2),
+            map_config=dict(lane_num=1),
         )
 
         return create_gym_wrapper(MultiGoalWrapped)(env_config)
