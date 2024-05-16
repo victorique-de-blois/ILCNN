@@ -27,6 +27,5 @@ CUDA_VISIBLE_DEVICES=7 \
 nohup python pvp/experiments/metadrive/train_metadrive_multigoal_sac.py \
 --wandb \
 --seed=100 \
---lr=1e-4 \
 --exp_name=sac_multigoal_0516 \
 > "brandon-sac.log" 2>&1 &
