@@ -118,11 +118,16 @@ if __name__ == '__main__':
             policy=SACPolicy,
             replay_buffer_class=ReplayBuffer,  ###
             # replay_buffer_kwargs=dict(),
-            # policy_kwargs=dict(net_arch=[256, 256]),
+            policy_kwargs=dict(log_std_init=1e-3, net_arch=[400, 300]),
             env=None,
 
             # ===== Training =====
             learning_rate=dict(actor=1e-4, critic=1e-4, entropy=1e-4),
+
+            use_sde_at_warmup=True,
+            use_sde=True,
+            sde_sample_freq=64,
+
             # optimization=dict(actor_learning_rate=1e-4, critic_learning_rate=1e-4, entropy_learning_rate=1e-4),
             #
             # prioritized_replay=False,
@@ -226,7 +231,7 @@ if __name__ == '__main__':
     # ===== Launch training =====
     model.learn(
         # training
-        total_timesteps=200_0000,
+        total_timesteps=300_0000,
         callback=callbacks,
         reset_num_timesteps=True,
 
