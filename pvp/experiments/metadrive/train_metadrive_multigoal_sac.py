@@ -39,9 +39,10 @@ class MultiGoalWrapped(MultiGoalIntersectionEnv):
 
         # Sample a goal from the goal set
         p = {
-            "right_turn": 0.4,
-            "left_turn": 0.5,
+            "right_turn": 0.3,
+            "left_turn": 0.3,
             "go_straight": 0.1,
+            "u_turn": 0.3
         }
         self.current_goal = np.random.choice(list(p.keys()), p=list(p.values()))
 
@@ -137,7 +138,7 @@ if __name__ == '__main__':
             # clip_actions=False,
             # normalize_actions=True,
 
-            learning_starts=1000 if not args.eval else 0,  ###
+            learning_starts=10000 if not args.eval else 0,  ###
             batch_size=256,
             # tau=0.005,
             # gamma=0.99,
@@ -172,15 +173,15 @@ if __name__ == '__main__':
             use_render=render,
             manual_control=False,
             vehicle_config=dict(show_lidar=False, show_navi_mark=True, show_line_to_navi_mark=True, show_line_to_dest=True, show_dest_mark=True),
-            accident_prob=0.0,
-            traffic_density=0.1,
+            # accident_prob=0.0,
+            # traffic_density=0.1,
             decision_repeat=5,
             horizon=500,  # to speed up training
 
-            out_of_road_penalty=0.5,
-            out_of_route_penalty=0.5,
-
-            map_config=dict(lane_num=2),
+            # out_of_road_penalty=0.5,
+            # out_of_route_penalty=0.5,
+            #
+            # map_config=dict(lane_num=2),
         )
 
         return create_gym_wrapper(MultiGoalWrapped)(env_config)

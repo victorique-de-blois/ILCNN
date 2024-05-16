@@ -40,9 +40,10 @@ class MultiGoalWrapped(MultiGoalIntersectionEnv):
 
         # Sample a goal from the goal set
         p = {
-            "right_turn": 0.4,
-            "left_turn": 0.5,
+            "right_turn": 0.3,
+            "left_turn": 0.3,
             "go_straight": 0.1,
+            "u_turn": 0.3
         }
         self.current_goal = np.random.choice(list(p.keys()), p=list(p.values()))
 
@@ -55,29 +56,6 @@ class MultiGoalWrapped(MultiGoalIntersectionEnv):
 
         return o, i
 
-
-# def make_eval_env():
-#     from metadrive.envs.multigoal_intersection import MultiGoalIntersectionEnv
-#     from metadrive.envs.gym_wrapper import create_gym_wrapper
-#
-#     env_config = dict(
-#         use_render=False,
-#         manual_control=False,
-#         vehicle_config=dict(show_lidar=False, show_navi_mark=True, show_line_to_navi_mark=True),
-#         accident_prob=0.0,
-#         decision_repeat=5,
-#         horizon=500,  # to speed up training
-#     )
-#
-#     return create_gym_wrapper(MultiGoalIntersectionEnv)(env_config)
-
-
-# def make_eval_env(log_dir):
-#     def _init():
-#         env = Monitor(env=HumanInTheLoopEnv(config=baseline_eval_config), filename=os.path.join(log_dir, "eval"))
-#         return env
-#
-#     return _init
 
 
 if __name__ == '__main__':
@@ -130,7 +108,7 @@ if __name__ == '__main__':
             gamma=0.99,
             train_freq=1,
             gradient_steps=1,
-            action_noise=NormalActionNoise(mean=np.zeros([2,]), sigma=0.1 * np.ones([2,])),
+            action_noise=NormalActionNoise(mean=np.zeros([2,]), sigma=0.15 * np.ones([2,])),
             # target_policy_noise=0,
             # policy_delay=1,
 
@@ -167,15 +145,15 @@ if __name__ == '__main__':
                 show_lane_line_detector = True,
             ),
             debug=render,
-            accident_prob=0.0,
-            traffic_density=0.1,
+            # accident_prob=0.0,
+            # traffic_density=0.1,
             decision_repeat=5,
             horizon=500,  # to speed up training
-
-            out_of_road_penalty=0.5,
-            out_of_route_penalty=0.5,
-
-            map_config=dict(lane_num=1),
+            #
+            # out_of_road_penalty=0.5,
+            # out_of_route_penalty=0.5,
+            #
+            # map_config=dict(lane_num=1),
         )
 
         return create_gym_wrapper(MultiGoalWrapped)(env_config)
@@ -226,7 +204,7 @@ if __name__ == '__main__':
     # ===== Launch training =====
     model.learn(
         # training
-        total_timesteps=200_0000,
+        total_timesteps=300_0000,
         callback=callbacks,
         reset_num_timesteps=True,
 
