@@ -126,11 +126,15 @@ class PVPTD3(TD3):
                 # ====== The key of Proxy Value Objective =====
                 l += th.mean(
                     replay_data.interventions * self.cql_coefficient *
-                    (F.mse_loss(current_q_behavior, self.q_value_bound * th.ones_like(current_q_behavior)))
+                    F.mse_loss(
+                        current_q_behavior, self.q_value_bound * th.ones_like(current_q_behavior), reduction="none"
+                    )
                 )
                 l += th.mean(
                     replay_data.interventions * self.cql_coefficient *
-                    (F.mse_loss(current_q_novice, -self.q_value_bound * th.ones_like(current_q_novice)))
+                    F.mse_loss(
+                        current_q_novice, -self.q_value_bound * th.ones_like(current_q_behavior), reduction="none"
+                    )
                 )
 
                 critic_loss.append(l)
