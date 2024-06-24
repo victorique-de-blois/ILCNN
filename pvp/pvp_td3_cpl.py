@@ -720,8 +720,11 @@ class PVPTD3CPL(TD3):
                 min_comparison = min(num_c_comparisons, num_comparisons)
                 zeros_label_c = zeros_label.new_zeros((min_comparison, ))
 
+                # NOTE: We know that BC on human data > BC on all data.
+                # That means the BC loss on c should be larger than the BC loss on a (human data).
+                # This leads to the following preference:
                 cpl_loss_6, accuracy_6 = biased_bce_with_logits(
-                    adv_c, adv_a_neg, zeros_label_c, bias=cpl_bias, shuffle=False
+                    adv_a_pos, adv_c, zeros_label_c, bias=cpl_bias, shuffle=False
                 )
                 cpl_losses.append(cpl_loss_6)
                 accuracies.append(accuracy_6)
