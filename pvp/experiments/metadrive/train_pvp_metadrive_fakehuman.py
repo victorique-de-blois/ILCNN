@@ -97,7 +97,7 @@ if __name__ == '__main__':
             # intervention_start_stop_td=args.intervention_start_stop_td,
             adaptive_batch_size=args.adaptive_batch_size,
             bc_loss_weight=args.bc_loss_weight,
-            add_bc_loss=args.bc_loss_weight > 0.0,
+            add_bc_loss="True" if args.bc_loss_weight > 0.0 else "False",
             use_balance_sample=True,
             agent_data_ratio=1.0,
             policy=TD3Policy,
