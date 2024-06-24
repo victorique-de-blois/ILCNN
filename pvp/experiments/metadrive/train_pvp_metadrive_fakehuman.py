@@ -33,9 +33,10 @@ if __name__ == '__main__':
     parser.add_argument("--log_dir", type=str, default="/data/zhenghao/pvp", help="Folder to store the logs.")
     parser.add_argument("--free_level", type=float, default=0.95)
 
-    parser.add_argument(
-        "--intervention_start_stop_td", default=True, type=bool, help="Whether to use intervention_start_stop_td."
-    )
+    # parser.add_argument(
+    #     "--intervention_start_stop_td", default=True, type=bool, help="Whether to use intervention_start_stop_td."
+    # )
+    parser.add_argument("--adaptive_batch_size", action="store_true")
 
     parser.add_argument("--toy_env", action="store_true", help="Whether to use a toy environment.")
     # parser.add_argument(
@@ -88,7 +89,8 @@ if __name__ == '__main__':
 
         # Algorithm config
         algo=dict(
-            intervention_start_stop_td=args.intervention_start_stop_td,
+            # intervention_start_stop_td=args.intervention_start_stop_td,
+            adaptive_batch_size=args.adaptive_batch_size,
             use_balance_sample=True,
             policy=TD3Policy,
             replay_buffer_class=HACOReplayBuffer,
@@ -137,6 +139,7 @@ if __name__ == '__main__':
     config["algo"]["env"] = train_env
     assert config["algo"]["env"] is not None
 
+
     # ===== Also build the eval env =====
     def _make_eval_env():
         eval_env_config = dict(
@@ -150,6 +153,7 @@ if __name__ == '__main__':
         eval_env = HumanInTheLoopEnv(config=eval_env_config)
         eval_env = Monitor(env=eval_env, filename=str(trial_dir))
         return eval_env
+
 
     eval_env = SubprocVecEnv([_make_eval_env])
 

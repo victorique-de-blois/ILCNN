@@ -10,7 +10,24 @@ for i in {0..2}
 do
     CUDA_VISIBLE_DEVICES=$i \
     nohup python pvp/experiments/metadrive/train_pvp_metadrive_fakehuman.py \
-    --exp_name=0624_pvp_regression_after_int_fix \
+    --exp_name=0624_pvp_regression_adaptive_after_int_fix \
+    --wandb \
+    --wandb_project=pvp2024 \
+    --wandb_team=drivingforce \
+    --seed=${seeds[$i]} \
+    --free_level=0.95 \
+    --adaptive_batch_size \
+    > "seed${seeds[$i]}.log" 2>&1 &
+done
+
+
+
+# Loop over each GPU
+for i in {3..5}
+do
+    CUDA_VISIBLE_DEVICES=$i \
+    nohup python pvp/experiments/metadrive/train_pvp_metadrive_fakehuman.py \
+    --exp_name=0624_pvp_regression_NOadaptive_after_int_fix \
     --wandb \
     --wandb_project=pvp2024 \
     --wandb_team=drivingforce \
