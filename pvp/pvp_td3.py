@@ -187,7 +187,8 @@ class PVPTD3(TD3):
                 actor_loss.backward()
                 self.actor.optimizer.step()
                 stat_recorder["train/actor_loss"] = actor_loss.item()
-                stat_recorder["train/bc_loss"] = masked_bc_loss.item()
+                stat_recorder["train/masked_bc_loss"] = masked_bc_loss.item()
+                stat_recorder["train/bc_loss"] = bc_loss.mean().item()
 
                 polyak_update(self.critic.parameters(), self.critic_target.parameters(), self.tau)
                 polyak_update(self.actor.parameters(), self.actor_target.parameters(), self.tau)
