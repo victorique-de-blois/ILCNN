@@ -16,8 +16,7 @@ do
     --wandb_team=drivingforce \
     --seed=${seeds[$i]} \
     --free_level=0.95 \
-    --adaptive_batch_size \
-    --log_dir=0624_pvp_regression_adaptive_after_int_fix \
+    --adaptive_batch_size=True \
     > "seed${seeds[$i]}.log" 2>&1 &
 done
 
@@ -34,7 +33,7 @@ do
     --wandb_team=drivingforce \
     --seed=${seeds[$i]} \
     --free_level=0.95 \
-    --log_dir=0624_pvp_regression_withoutadaptive_after_int_fix \
+    --adaptive_batch_size=False \
     > "seed${seeds[$i]}.log" 2>&1 &
 done
 

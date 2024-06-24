@@ -36,7 +36,8 @@ if __name__ == '__main__':
     # parser.add_argument(
     #     "--intervention_start_stop_td", default=True, type=bool, help="Whether to use intervention_start_stop_td."
     # )
-    parser.add_argument("--adaptive_batch_size", action="store_true")
+
+    parser.add_argument("--adaptive_batch_size", default="False", type=str)
 
     parser.add_argument("--toy_env", action="store_true", help="Whether to use a toy environment.")
     # parser.add_argument(
