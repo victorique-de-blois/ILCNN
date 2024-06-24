@@ -114,7 +114,7 @@ class WandbCallback(BaseCallback):
             # id=exp_name,
             # name=run_name,
             config=config or {},
-            resume=True,
+            resume=False,
             reinit=True,
             sync_tensorboard=True,  # Open this and setup tb in sb3 so that we can get log!
             save_code=True,

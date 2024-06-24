@@ -13,7 +13,9 @@ from pvp.sb3.common.type_aliases import GymEnv, MaybeCallback, Schedule
 from pvp.sb3.common.utils import obs_as_tensor, safe_mean
 from pvp.sb3.common.vec_env import VecEnv
 
+import gymnasium
 
+ 
 class OnPolicyAlgorithm(BaseAlgorithm):
     """
     The base for On-Policy algorithms (ex: A2C/PPO).
@@ -173,8 +175,7 @@ class OnPolicyAlgorithm(BaseAlgorithm):
             clipped_actions = actions
             # Clip the actions to avoid out of bound error
 
-            raise ValueError("compatiblity gymnasium space?")
-            if isinstance(self.action_space, gym.spaces.Box):
+            if isinstance(self.action_space, (gym.spaces.Box, gymnasium.spaces.Box)):
                 clipped_actions = np.clip(actions, self.action_space.low, self.action_space.high)
 
             new_obs, rewards, dones, infos = env.step(clipped_actions)
