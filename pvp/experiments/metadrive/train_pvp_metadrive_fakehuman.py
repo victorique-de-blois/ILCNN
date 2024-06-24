@@ -26,18 +26,22 @@ if __name__ == '__main__':
     parser.add_argument(
         "--exp_name", default="pvp_metadrive_fakehuman", type=str, help="The name for this batch of experiments."
     )
+    parser.add_argument("--learning_starts", default=200, type=int)
+    parser.add_argument("--save_freq", default=500, type=int)
     parser.add_argument("--seed", default=0, type=int, help="The random seed.")
     parser.add_argument("--wandb", action="store_true", help="Set to True to upload stats to wandb.")
     parser.add_argument("--wandb_project", type=str, default="", help="The project name for wandb.")
     parser.add_argument("--wandb_team", type=str, default="", help="The team name for wandb.")
     parser.add_argument("--log_dir", type=str, default="/data/zhenghao/pvp", help="Folder to store the logs.")
     parser.add_argument("--free_level", type=float, default=0.95)
+    parser.add_argument("--bc_loss_weight", type=float, default=0.0)
 
     # parser.add_argument(
     #     "--intervention_start_stop_td", default=True, type=bool, help="Whether to use intervention_start_stop_td."
     # )
 
     parser.add_argument("--adaptive_batch_size", default="False", type=str)
+    parser.add_argument("--ckpt", default="", type=str)
 
     parser.add_argument("--toy_env", action="store_true", help="Whether to use a toy environment.")
     # parser.add_argument(
@@ -92,6 +96,8 @@ if __name__ == '__main__':
         algo=dict(
             # intervention_start_stop_td=args.intervention_start_stop_td,
             adaptive_batch_size=args.adaptive_batch_size,
+            bc_loss_weight=args.bc_loss_weight,
+            add_bc_loss=args.bc_loss_weight > 0.0,
             use_balance_sample=True,
             agent_data_ratio=1.0,
             policy=TD3Policy,
@@ -105,7 +111,7 @@ if __name__ == '__main__':
             q_value_bound=1,
             optimize_memory_usage=True,
             buffer_size=50_000,  # We only conduct experiment less than 50K steps
-            learning_starts=100,  # The number of steps before
+            learning_starts=args.learning_starts,  # The number of steps before
             batch_size=128,  # Reduce the batch size for real-time copilot
             tau=0.005,
             gamma=0.99,
@@ -160,7 +166,7 @@ if __name__ == '__main__':
     eval_env = SubprocVecEnv([_make_eval_env])
 
     # ===== Setup the callbacks =====
-    save_freq = 500  # Number of steps per model checkpoint
+    save_freq = args.save_freq  # Number of steps per model checkpoint
     callbacks = [
         CheckpointCallback(name_prefix="rl_model", verbose=1, save_freq=save_freq, save_path=str(trial_dir / "models"))
     ]
@@ -178,6 +184,13 @@ if __name__ == '__main__':
 
     # ===== Setup the training algorithm =====
     model = PVPTD3(**config["algo"])
+    if args.ckpt:
+        ckpt = Path(args.ckpt)
+        print(f"Loading checkpoint from {ckpt}!")
+        from pvp.sb3.common.save_util import load_from_zip_file
+        data, params, pytorch_variables = load_from_zip_file(ckpt, device=model.device, print_system_info=False)
+        model.set_parameters(params, exact_match=True, device=model.device)
+
 
     # ===== Launch training =====
     model.learn(
