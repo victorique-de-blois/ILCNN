@@ -180,6 +180,7 @@ class LowStateNetwork(nn.Module):
         output = output.view(B, T, -1)
         return output
 
+
 class BBoxFeatureExtractor(BaseFeaturesExtractor):
     def __init__(self, observation_space, features_dim, transformer_hidden_dim=1024, horizon=10,
                  num_transformer_layers=2, num_transformer_heads=2, net_arch=(256,), use_continuous_action_space=False):
@@ -190,26 +191,12 @@ class BBoxFeatureExtractor(BaseFeaturesExtractor):
         self.nets = nn.Sequential(*create_mlp(input_dim=obs_flat_dim, output_dim=features_dim, net_arch=net_arch))
 
         if use_continuous_action_space:
-
             act_flat_dim = observation_space["action"].shape[1:]
             act_flat_dim = np.prod(act_flat_dim)
-
             self.action_embedding = nn.Sequential(
                 *create_mlp(input_dim=act_flat_dim, output_dim=features_dim, net_arch=net_arch))
-
         else:
             self.action_embedding = nn.Embedding(observation_space["action"][0].n, features_dim)
-
-        # TODO: Adding another network for low-level state embedding.
-        pass
-
-        self.use_low_state_obs = "low_state" in observation_space.spaces
-        if self.use_low_state_obs:
-            self.low_state_nets = LowStateNetwork(
-                input_channels=46, embedding_channels=32, history_length=50, output_size=features_dim
-            )
-        else:
-            self.low_state_nets = None
 
         # Define the tiny transformer
         self.transformer = TinyTransformer(
@@ -233,36 +220,13 @@ class BBoxFeatureExtractor(BaseFeaturesExtractor):
 
         features = [obs_features, action_features]
         steps = [obs_step, act_step]
-        if self.use_low_state_obs:
-            low_state_feats = self.low_state_nets(observations['low_state'])
-            features.append(low_state_feats)
-            steps.append(obs_step)
 
         time_dim = 1
         features = torch.cat(features, dim=time_dim)
         steps = torch.cat(steps, dim=time_dim)
 
-
-
         output_token = self.transformer(features, steps)  # Apply the transformer
         return output_token
-
-
-
-class SimpleBBoxFeatureExtractor(BaseFeaturesExtractor):
-    def __init__(self, observation_space, features_dim, transformer_hidden_dim=1024, horizon=10,
-                 num_transformer_layers=2, num_transformer_heads=2, net_arch=(256,), use_continuous_action_space=False,
-                 simple_features_extractor=False):
-        super().__init__(observation_space, features_dim)
-
-        obs_flat_dim = observation_space["obs"].shape[1:]
-        obs_flat_dim = np.prod(obs_flat_dim)
-        self.nets = nn.Sequential(
-            *create_mlp(input_dim=obs_flat_dim, output_dim=features_dim, net_arch=net_arch)
-        )
-
-    def forward(self, observations):
-        return self.nets(observations["obs"][:, -1]), None
 
 
 class PVPCritic(ContinuousCritic):
@@ -276,7 +240,8 @@ class PVPCritic(ContinuousCritic):
         return new_obs
 
     def forward(self, obs: th.Tensor, actions: th.Tensor):
-        features = self.extract_features(self.add_actions_to_obs(obs, actions))
+        new = self.add_actions_to_obs(obs, actions)
+        features = self.extract_features(new)
         qvalue_input = th.cat([features, actions], dim=1)
         return tuple(q_net(qvalue_input) for q_net in self.q_networks)
 
@@ -543,7 +508,7 @@ if __name__ == '__main__':
                     use_continuous_action_space=True,
                     net_arch=[],
                 ),
-                net_arch=[256, 256],
+                net_arch=[256,],
                 one_hot_discrete=False,
 
                 share_features_extractor=False,
@@ -587,7 +552,6 @@ if __name__ == '__main__':
     train_env = FakeHumanEnv(config=config["env_config"], )
 
     train_env = HistoryWrapper(train_env, horizon=10, include_first_frame=False)
-
 
     train_env = Monitor(env=train_env, filename=str(trial_dir))
     # Store all shared control data to the files.
