@@ -31,8 +31,8 @@ for i in {0..3}
 do
     CUDA_VISIBLE_DEVICES=$i \
     nohup python pvp/experiments/metadrive/train_pvpdqn_metadrive_fakehuman.py \
-    --exp_name=0628_pvpdqn_bcloss0_notransformer_13x13 \
-    --bc_loss_weight=0.0 \
+    --exp_name=0628_pvpdqn_bcloss1.0_notransformer_13x13 \
+    --bc_loss_weight=1.0 \
     --wandb \
     --wandb_project=pvp2024 \
     --wandb_team=drivingforce \
