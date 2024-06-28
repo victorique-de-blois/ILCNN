@@ -87,14 +87,14 @@ class FakeHumanEnv(HumanInTheLoopEnv):
     def __init__(self, config):
         super(FakeHumanEnv, self).__init__(config)
         if self.config["use_discrete"]:
-            self._num_bins = 5
+            self._num_bins = 13
             self._grid = np.linspace(-1, 1, self._num_bins)
             self._actions = np.array(np.meshgrid(self._grid, self._grid)).T.reshape(-1, 2)
 
     @property
     def action_space(self) -> gym.Space:
         if self.config["use_discrete"]:
-            return gym.spaces.Discrete(25)
+            return gym.spaces.Discrete(self._num_bins ** 2)
         else:
             return super(FakeHumanEnv, self).action_space
 
