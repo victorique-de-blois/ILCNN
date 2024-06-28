@@ -1,14 +1,15 @@
 import copy
 import math
+import pathlib
+
+import gymnasium as gym
+import numpy as np
 import torch
-from metadrive.engine.engine_utils import get_global_config
 from metadrive.engine.logger import get_logger
 from metadrive.examples.ppo_expert.numpy_expert import ckpt_path
-from metadrive.obs.state_obs import LidarStateObservation
 from metadrive.policy.env_input_policy import EnvInputPolicy
-import numpy as np
+
 from pvp.experiments.metadrive.human_in_the_loop_env import HumanInTheLoopEnv
-import pathlib
 
 FOLDER_PATH = pathlib.Path(__file__).parent
 
@@ -16,7 +17,6 @@ logger = get_logger()
 
 
 def get_expert():
-
     from pvp.sb3.common.save_util import load_from_zip_file
     from pvp.sb3.ppo import PPO
     from pvp.sb3.ppo.policies import ActorCriticPolicy
@@ -63,9 +63,9 @@ def obs_correction(obs):
 
 
 def normpdf(x, mean, sd):
-    var = float(sd)**2
-    denom = (2 * math.pi * var)**.5
-    num = math.exp(-(float(x) - float(mean))**2 / (2 * var))
+    var = float(sd) ** 2
+    denom = (2 * math.pi * var) ** .5
+    num = math.exp(-(float(x) - float(mean)) ** 2 / (2 * var))
     return num / denom
 
 
@@ -84,11 +84,35 @@ class FakeHumanEnv(HumanInTheLoopEnv):
     last_obs = None
     expert = None
 
+    def __init__(self, config):
+        super(FakeHumanEnv, self).__init__(config)
+        if self.config["use_discrete"]:
+            self._num_bins = 5
+            self._grid = np.linspace(-1, 1, self._num_bins)
+            self._actions = np.array(np.meshgrid(self._grid, self._grid)).T.reshape(-1, 2)
+
+    @property
+    def action_space(self) -> gym.Space:
+        if self.config["use_discrete"]:
+            return gym.spaces.Discrete(25)
+        else:
+            return super(FakeHumanEnv, self).action_space
+
+    # def _preprocess_actions(self, actions: Union[np.ndarray, Dict[AnyStr, np.ndarray], int]) -> Union[np.ndarray, Dict[AnyStr, np.ndarray], int]:
+    #     if self.config["use_discrete"]:
+    #         print(111)
+    #         return int(actions)
+    #     else:
+    #         return actions
+
     def default_config(self):
         """Revert to use the RL policy (so no takeover signal will be issued from the human)"""
         config = super(FakeHumanEnv, self).default_config()
         config.update(
             {
+                "use_discrete": False,
+                "disable_expert": False,
+
                 "agent_policy": EnvInputPolicy,
                 "free_level": 0.95,
                 "manual_control": False,
@@ -98,44 +122,68 @@ class FakeHumanEnv(HumanInTheLoopEnv):
         )
         return config
 
+    def continuous_to_discrete(self, a):
+        distances = np.linalg.norm(self._actions - a, axis=1)
+        discrete_index = np.argmin(distances)
+        return discrete_index
+
+    def discrete_to_continuous(self, a):
+        continuous_action = self._actions[a.astype(int)]
+        return continuous_action
+
     def step(self, actions):
         """Compared to the original one, we call expert_action_prob here and implement a takeover function."""
         actions = np.asarray(actions).astype(np.float32)
+
+        if self.config["use_discrete"]:
+            actions = self.discrete_to_continuous(actions)
+
         self.agent_action = copy.copy(actions)
         self.last_takeover = self.takeover
 
         # ===== Get expert action and determine whether to take over! =====
-        if self.expert is None:
-            global _expert
-            self.expert = _expert
-        last_obs, _ = self.expert.obs_to_tensor(self.last_obs)
-        distribution = self.expert.get_distribution(last_obs)
-        log_prob = distribution.log_prob(torch.from_numpy(actions).to(last_obs.device))
-        action_prob = log_prob.exp().detach().cpu().numpy()
 
-        if self.config["expert_deterministic"]:
-            expert_action = distribution.mode().detach().cpu().numpy()
+        if self.config["disable_expert"]:
+            pass
+
         else:
-            expert_action = distribution.sample().detach().cpu().numpy()
+            if self.expert is None:
+                global _expert
+                self.expert = _expert
+            last_obs, _ = self.expert.obs_to_tensor(self.last_obs)
+            distribution = self.expert.get_distribution(last_obs)
+            log_prob = distribution.log_prob(torch.from_numpy(actions).to(last_obs.device))
+            action_prob = log_prob.exp().detach().cpu().numpy()
 
-        assert expert_action.shape[0] == action_prob.shape[0] == 1
-        action_prob = action_prob[0]
-        expert_action = expert_action[0]
-        if action_prob < 1 - self.config['free_level']:
+            if self.config["expert_deterministic"]:
+                expert_action = distribution.mode().detach().cpu().numpy()
+            else:
+                expert_action = distribution.sample().detach().cpu().numpy()
 
-            # print(f"Action probability: {action_prob}, agent action: {actions}, expert action: {expert_action},")
+            assert expert_action.shape[0] == action_prob.shape[0] == 1
+            action_prob = action_prob[0]
+            expert_action = expert_action[0]
+            if action_prob < 1 - self.config['free_level']:
 
-            actions = expert_action
-            self.takeover = True
-        else:
-            self.takeover = False
-        # print(f"Action probability: {action_prob:.3f}, agent action: {actions}, expert action: {expert_action}, takeover: {self.takeover}")
+                # print(f"Action probability: {action_prob}, agent action: {actions}, expert action: {expert_action},")
+
+                if self.config["use_discrete"]:
+                    expert_action = self.continuous_to_discrete(expert_action)
+                    expert_action = self.discrete_to_continuous(expert_action)
+
+                actions = expert_action
+
+                self.takeover = True
+            else:
+                self.takeover = False
+            # print(f"Action probability: {action_prob:.3f}, agent action: {actions}, expert action: {expert_action}, takeover: {self.takeover}")
 
         o, r, d, i = super(HumanInTheLoopEnv, self).step(actions)
         self.takeover_recorder.append(self.takeover)
         self.total_steps += 1
 
-        i["takeover_log_prob"] = log_prob.item()
+        if not self.config["disable_expert"]:
+            i["takeover_log_prob"] = log_prob.item()
 
         if self.config["use_render"]:  # and self.config["main_exp"]: #and not self.config["in_replay"]:
             super(HumanInTheLoopEnv, self).render(
@@ -151,6 +199,10 @@ class FakeHumanEnv(HumanInTheLoopEnv):
             )
 
         assert i["takeover"] == self.takeover
+
+        if self.config["use_discrete"]:
+            i["raw_action"] = self.continuous_to_discrete(i["raw_action"])
+
         return o, r, d, i
 
     def _get_step_return(self, actions, engine_info):

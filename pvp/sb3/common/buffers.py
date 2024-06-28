@@ -97,7 +97,7 @@ class BaseBuffer(ABC):
         self.pos = 0
         self.full = False
 
-    def sample(self, batch_size: int, env: Optional[VecNormalize] = None):
+    def sample(self, batch_size: int, env: Optional[VecNormalize] = None, discard_rgb=None):
         """
         :param batch_size: Number of element to sample
         :param env: associated gym VecEnv
@@ -263,7 +263,7 @@ class ReplayBuffer(BaseBuffer):
             self.full = True
             self.pos = 0
 
-    def sample(self, batch_size: int, env: Optional[VecNormalize] = None) -> ReplayBufferSamples:
+    def sample(self, batch_size: int, env: Optional[VecNormalize] = None, discard_rgb=None) -> ReplayBufferSamples:
         """
         Sample elements from the replay buffer.
         Custom sampling when using memory efficient variant,
@@ -599,7 +599,7 @@ class DictReplayBuffer(ReplayBuffer):
             self.full = True
             self.pos = 0
 
-    def sample(self, batch_size: int, env: Optional[VecNormalize] = None) -> DictReplayBufferSamples:
+    def sample(self, batch_size: int, env: Optional[VecNormalize] = None, discard_rgb=None) -> DictReplayBufferSamples:
         """
         Sample elements from the replay buffer.
 

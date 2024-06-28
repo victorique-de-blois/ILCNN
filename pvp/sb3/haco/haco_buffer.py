@@ -215,9 +215,9 @@ class HACOReplayBuffer(ReplayBuffer):
 
         # NOTE(PZH): a sanity check, if not takeover, then behavior actions must == novice actions
         # A special case is you might want to clip the novice actions.
-        if not infos[0]["takeover"]:
-            # TODO: This is overfit to MetaDrive, might need to fix.
-            assert np.abs(np.clip(action, -1, 1) - behavior_actions).max() < 1e-6
+        # if not infos[0]["takeover"]:
+        #     # TODO: This is overfit to MetaDrive, might need to fix.
+        #     assert np.abs(np.clip(action, -1, 1) - behavior_actions).max() < 1e-6
 
         if self.discard_reward:
             self.rewards[self.pos] = np.zeros_like(self.rewards[self.pos])
@@ -233,7 +233,7 @@ class HACOReplayBuffer(ReplayBuffer):
             self.pos = 0
 
     def sample(
-        self, batch_size: int, env: Optional[VecNormalize] = None, return_all=False
+        self, batch_size: int, env: Optional[VecNormalize] = None, return_all=False, discard_rgb=None
     ) -> HACODictReplayBufferSamples:
         """
         Sample elements from the replay buffer.
@@ -360,7 +360,8 @@ class HACOReplayBufferEpisode(ReplayBuffer):
         batch_size: int,
         env: Optional[VecNormalize] = None,
         return_all=False,
-        last_episodes=None
+        last_episodes=None,
+            discard_rgb=None
     ) -> HACODictReplayBufferSamples:
         """
         We will return everything we have!
