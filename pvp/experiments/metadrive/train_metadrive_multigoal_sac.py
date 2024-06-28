@@ -38,13 +38,17 @@ class MultiGoalWrapped(MultiGoalIntersectionEnv):
         o, i = super().reset(*args, **kwargs)
 
         # Sample a goal from the goal set
-        p = {
-            "right_turn": 0.3,
-            "left_turn": 0.3,
-            "go_straight": 0.1,
-            "u_turn": 0.3
-        }
-        self.current_goal = np.random.choice(list(p.keys()), p=list(p.values()))
+        if self.config["use_multigoal_intersection"]:
+            p = {
+                "right_turn": 0.3,
+                "left_turn": 0.3,
+                "go_straight": 0.1,
+                "u_turn": 0.3
+            }
+            self.current_goal = np.random.choice(list(p.keys()), p=list(p.values()))
+
+        else:
+            self.current_goal = "default"
 
         o = i['obs/goals/{}'.format(self.current_goal)]
         i['route_completion'] = i['route_completion/goals/{}'.format(self.current_goal)]
@@ -178,13 +182,19 @@ if __name__ == '__main__':
             decision_repeat=5,
             horizon=500,  # to speed up training
 
+            use_multigoal_intersection=False,
+            num_scenarios=1000,
+            start_seed=1000,
+
             # out_of_road_penalty=0.5,
             # out_of_route_penalty=0.5,
             #
             # map_config=dict(lane_num=2),
         )
 
-        return create_gym_wrapper(MultiGoalWrapped)(env_config)
+        wrapped = create_gym_wrapper(MultiGoalWrapped)
+
+        return wrapped(env_config)
 
 
     train_env = make_train_env(render=args.eval)
@@ -192,7 +202,6 @@ if __name__ == '__main__':
     config["algo"]["env"] = train_env
     assert config["algo"]["env"] is not None
 
-    # eval_env = DummyVecEnv([make_eval_env])
     eval_env = None
 
     # ===== Setup the callbacks =====
@@ -200,7 +209,7 @@ if __name__ == '__main__':
         CheckpointCallback(
             name_prefix="rl_model",
             verbose=1,
-            save_freq=10000,
+            save_freq=1_0000,
             save_path=osp.join(log_dir, "models")
         )
     ]
