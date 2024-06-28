@@ -162,7 +162,7 @@ if __name__ == '__main__':
             use_render=False,  # Open the interface
             manual_control=False,  # Allow receiving control signal from external device
             start_seed=1000,
-            horizon=1500,
+            horizon=1000,
 
             use_discrete=True,
 
@@ -219,8 +219,8 @@ if __name__ == '__main__':
 
         # eval
         eval_env=eval_env,
-        eval_freq=500,
-        n_eval_episodes=10,
+        eval_freq=1000,
+        n_eval_episodes=30,
         eval_log_path=str(trial_dir),
 
         # logging
