@@ -177,8 +177,10 @@ class PVPTD3(TD3):
 
                 # BC loss on human data
                 bc_loss = F.mse_loss(replay_data.actions_behavior, new_action, reduction="none").mean(axis=-1)
-                masked_bc_loss = replay_data.interventions.flatten() * bc_loss
-                masked_bc_loss = masked_bc_loss.mean()
+                masked_bc_loss = (replay_data.interventions.flatten() * bc_loss).sum() / (
+                    replay_data.interventions.flatten().sum() + 1e-5
+                )
+                # masked_bc_loss = masked_bc_loss.mean()
                 if self.extra_config["add_bc_loss"]:
                     actor_loss += masked_bc_loss * self.extra_config["bc_loss_weight"]
 

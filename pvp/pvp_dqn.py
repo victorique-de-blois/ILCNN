@@ -190,6 +190,17 @@ class PVPDQN(DQN):
             loss_td = F.smooth_l1_loss(current_behavior_q_values, target_q_values)
 
             loss = loss_td.mean() + pvp_loss.mean()
+
+            # BC loss
+            lp = torch.distributions.Categorical(logits=current_behavior_q_values.flatten()).log_prob(replay_data.actions_behavior)
+            masked_lp = (mask * lp).sum() / (mask.sum() + 1e-8)
+            bc_loss = -lp.mean()
+            masked_bc_loss = -masked_lp
+
+            loss += self.bc_loss_weight * masked_bc_loss
+            stat_recorder["bc_loss"].append(bc_loss.item())
+            stat_recorder["masked_bc_loss"].append(masked_bc_loss.item())
+
             losses.append(loss.item())
 
             # Optimize the policy
