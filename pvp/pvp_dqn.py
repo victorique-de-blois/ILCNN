@@ -27,8 +27,8 @@ def sample_and_concat(replay_data_agent, replay_data_human, agent_data_index):
         intervention_costs=replay_data_agent.intervention_costs[agent_data_index],
         takeover_log_prob=replay_data_agent.takeover_log_prob[agent_data_index],
         next_intervention_start=replay_data_agent.next_intervention_start[agent_data_index],
-        feature_observations=replay_data_agent.feature_observations[agent_data_index] if replay_data_agent.feature_observations is not None else None,
-        feature_next_observations=replay_data_agent.feature_next_observations[agent_data_index] if replay_data_agent.feature_next_observations is not None else None,
+        # feature_observations=replay_data_agent.feature_observations[agent_data_index] if replay_data_agent.feature_observations is not None else None,
+        # feature_next_observations=replay_data_agent.feature_next_observations[agent_data_index] if replay_data_agent.feature_next_observations is not None else None,
     ), replay_data_human)
     return replay_data
 
