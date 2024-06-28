@@ -123,6 +123,7 @@ if __name__ == '__main__':
             tau=0.005,
             gamma=0.99,
             train_freq=(1, "episode"),
+            gradient_steps=-1,
 
             tensorboard_log=trial_dir,
             create_eval_env=False,
