@@ -192,8 +192,8 @@ class PVPDQN(DQN):
             loss = loss_td.mean() + pvp_loss.mean()
 
             # BC loss
-            lp = torch.distributions.Categorical(logits=current_behavior_q_values.flatten()).log_prob(replay_data.actions_behavior)
-            masked_lp = (mask * lp).sum() / (mask.sum() + 1e-8)
+            lp = torch.distributions.Categorical(logits=current_q_values).log_prob(replay_data.actions_behavior.flatten())
+            masked_lp = (mask.flatten() * lp.flatten()).sum() / (mask.sum() + 1e-8)
             bc_loss = -lp.mean()
             masked_bc_loss = -masked_lp
 
