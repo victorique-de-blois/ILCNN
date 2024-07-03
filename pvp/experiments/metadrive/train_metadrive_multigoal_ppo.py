@@ -17,6 +17,7 @@ import argparse
 import os
 import os.path as osp
 
+from metadrive.envs.multigoal_intersection import MultiGoalIntersectionEnv
 # from pvp.train_metadrive.human_in_the_loop_env import HumanInTheLoopEnv
 from pvp.sb3.common.callbacks import CallbackList, CheckpointCallback
 from pvp.sb3.common.monitor import Monitor
@@ -43,6 +44,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--exp_name", default="ppo_metadrive_multigoal", type=str, help="The name for this batch of experiments.")
     parser.add_argument("--seed", default=0, type=int, help="The random seed.")
+    parser.add_argument("--traffic_density", default=0.2, type=float)
     parser.add_argument("--ckpt", default=None, type=str, help="Path to previous checkpoint.")
     parser.add_argument("--debug", action="store_true", help="Set to True when debugging.")
     parser.add_argument("--wandb", action="store_true", help="Set to True to upload stats to wandb.")
@@ -62,6 +64,8 @@ if __name__ == '__main__':
     seed = args.seed
     trial_name = "{}_{}".format(experiment_batch_name, get_time_str())
 
+    traffic_density = args.traffic_density
+
     use_wandb = args.wandb
     project_name = args.wandb_project
     team_name = args.wandb_team
@@ -77,22 +81,27 @@ if __name__ == '__main__':
     # ===== Setup the config =====
     config = dict(
         # ===== Environment =====
-        env_config=dict(
-            use_render=False,  # Open the interface
-            manual_control=False,  # Allow receiving control signal from external device
-            # controller=control_device,
-            # window_size=(1600, 1100),
-            horizon=1500,
-        ),
+        # env_config=dict(
+        #     use_render=False,  # Open the interface
+        #     manual_control=False,  # Allow receiving control signal from external device
+        #     # controller=control_device,
+        #     # window_size=(1600, 1100),
+        #     horizon=1500,
+        #
+        #     use_multigoal_intersection=False,
+        #     num_scenarios=1000,
+        #     start_seed=1000,
+        #
+        # ),
         num_train_envs=32,
 
         # ===== Environment =====
-        eval_env_config=dict(
-            use_render=False,  # Open the interface
-            manual_control=False,  # Allow receiving control signal from external device
-            start_seed=1000,
-            horizon=1500,
-        ),
+        # eval_env_config=dict(
+        #     use_render=False,  # Open the interface
+        #     manual_control=False,  # Allow receiving control signal from external device
+        #     start_seed=1000,
+        #     horizon=1500,
+        # ),
         num_eval_envs=1,
 
         # ===== Training =====
@@ -127,7 +136,7 @@ if __name__ == '__main__':
         vec_env_cls = DummyVecEnv
 
     # ===== Setup the training environment =====
-    train_env_config = config["env_config"]
+    # train_env_config = config["env_config"]
 
     # def _make_train_env():
     #     from pvp.experiments.metadrive.human_in_the_loop_env import HumanInTheLoopEnv
@@ -139,7 +148,6 @@ if __name__ == '__main__':
 
 
     def make_train_env():
-
         class MultiGoalWrapped(MultiGoalIntersectionEnv):
             current_goal = None
 
@@ -160,12 +168,17 @@ if __name__ == '__main__':
                 o, i = super().reset(*args, **kwargs)
 
                 # Sample a goal from the goal set
-                p = {
-                    "right_turn": 0.33,
-                    "left_turn": 0.33,
-                    "go_straight": 0.34,
-                }
-                self.current_goal = np.random.choice(list(p.keys()), p=list(p.values()))
+                if self.config["use_multigoal_intersection"]:
+                    p = {
+                        "right_turn": 0.3,
+                        "left_turn": 0.3,
+                        "go_straight": 0.1,
+                        "u_turn": 0.3
+                    }
+                    self.current_goal = np.random.choice(list(p.keys()), p=list(p.values()))
+
+                else:
+                    self.current_goal = "default"
 
                 o = i['obs/goals/{}'.format(self.current_goal)]
                 i['route_completion'] = i['route_completion/goals/{}'.format(self.current_goal)]
@@ -188,37 +201,41 @@ if __name__ == '__main__':
                 show_side_detector = True,
                 show_lane_line_detector = True,
             ),
-            accident_prob=0.0,
-            traffic_density=0.0,
-            decision_repeat=5,
-            horizon=500,  # to speed up training
+            # accident_prob=0.0,
+            traffic_density=traffic_density,
+            # decision_repeat=5,
+            # horizon=500,  # to speed up training
+            #
+            # out_of_route_penalty=1,
 
-            out_of_route_penalty=1,
+            use_multigoal_intersection=False,
+            num_scenarios=1000,
+            start_seed=1000,
         )
 
         return create_gym_wrapper(MultiGoalWrapped)(env_config)
 
-    def make_eval_env():
-
-        env_config = dict(
-            use_render=False,
-            manual_control=False,
-            vehicle_config=dict(
-                show_navi_mark = True,
-                show_line_to_navi_mark = True,
-                show_lidar = False,
-                show_side_detector = True,
-                show_lane_line_detector = True,
-            ),
-            accident_prob=0.0,
-            traffic_density=0.0,
-            decision_repeat=5,
-            horizon=500,  # to speed up training
-
-            out_of_route_penalty=1,
-        )
-
-        return create_gym_wrapper(MultiGoalIntersectionEnv)(env_config)
+    # def make_eval_env():
+    #
+    #     env_config = dict(
+    #         use_render=False,
+    #         manual_control=False,
+    #         vehicle_config=dict(
+    #             show_navi_mark = True,
+    #             show_line_to_navi_mark = True,
+    #             show_lidar = False,
+    #             show_side_detector = True,
+    #             show_lane_line_detector = True,
+    #         ),
+    #         accident_prob=0.0,
+    #         traffic_density=0.0,
+    #         decision_repeat=5,
+    #         horizon=500,  # to speed up training
+    #
+    #         out_of_route_penalty=1,
+    #     )
+    #
+    #     return create_gym_wrapper(MultiGoalIntersectionEnv)(env_config)
 
 
 
@@ -229,7 +246,7 @@ if __name__ == '__main__':
     assert config["algo"]["env"] is not None
 
     # ===== Also build the eval env =====
-    eval_env_config = config["eval_env_config"]
+    # eval_env_config = config["eval_env_config"]
 
     # def _make_eval_env():
     #     from pvp.experiments.metadrive.human_in_the_loop_env import HumanInTheLoopEnv
@@ -240,7 +257,8 @@ if __name__ == '__main__':
 
     # eval_env_name = "metadrive_eval-v0"
     # register_env(_make_eval_env, eval_env_name)
-    eval_env = make_vec_env(make_eval_env, n_envs=config["num_eval_envs"], vec_env_cls=vec_env_cls)
+    # eval_env = make_vec_env(make_eval_env, n_envs=config["num_eval_envs"], vec_env_cls=vec_env_cls)
+    eval_env = None
 
     # ===== Setup the callbacks =====
     save_freq = 100_000  # Number of steps per model checkpoint
