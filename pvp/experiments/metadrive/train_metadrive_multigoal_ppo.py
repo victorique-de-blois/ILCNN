@@ -53,10 +53,14 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # FIXME: Remove this in future.
-    if args.wandb_team is None:
-        args.wandb_team = "drivingforce"
-    if args.wandb_project is None:
-        args.wandb_project = "pvp2024"
+    # if args.wandb_team is None:
+    #     args.wandb_team = "drivingforce"
+    # if args.wandb_project is None:
+    #     args.wandb_project = "pvp2024"
+
+
+    project_name = "brandon"
+    team_name = "drivingforce"
 
     # ===== Set up some arguments =====
     # control_device = args.device
@@ -67,8 +71,8 @@ if __name__ == '__main__':
     traffic_density = args.traffic_density
 
     use_wandb = args.wandb
-    project_name = args.wandb_project
-    team_name = args.wandb_team
+    # project_name = args.wandb_project
+    # team_name = args.wandb_team
     if not use_wandb:
         print("[WARNING] Please note that you are not using wandb right now!!!")
 
