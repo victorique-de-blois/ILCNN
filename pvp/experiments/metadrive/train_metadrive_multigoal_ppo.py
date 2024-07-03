@@ -66,7 +66,7 @@ if __name__ == '__main__':
     # control_device = args.device
     experiment_batch_name = "{}".format(args.exp_name)
     seed = args.seed
-    trial_name = "{}_{}".format(experiment_batch_name, get_time_str())
+    trial_name = "{}_seed{}_{}".format(experiment_batch_name, seed, get_time_str())
 
     traffic_density = args.traffic_density
 
