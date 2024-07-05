@@ -44,6 +44,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--exp_name", default="ppo_metadrive_multigoal", type=str, help="The name for this batch of experiments.")
     parser.add_argument("--seed", default=0, type=int, help="The random seed.")
+    parser.add_argument("--lane_line_detector", default=0, type=int)
+    parser.add_argument("--vehicle_detector", default=120, type=int)
     parser.add_argument("--traffic_density", default=0.2, type=float)
     parser.add_argument("--ckpt", default=None, type=str, help="Path to previous checkpoint.")
     parser.add_argument("--debug", action="store_true", help="Set to True when debugging.")
@@ -204,6 +206,9 @@ if __name__ == '__main__':
                 show_lidar = False,
                 show_side_detector = True,
                 show_lane_line_detector = True,
+
+                lane_line_detector=dict(num_lasers=args.lane_line_detector),
+                lidar=dict(num_lasers=args.vehicle_detector),
             ),
             # accident_prob=0.0,
             traffic_density=traffic_density,
