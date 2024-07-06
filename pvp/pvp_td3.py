@@ -42,7 +42,7 @@ class PVPTD3(TD3):
         self.extra_config = {}
         for k in ["no_done_for_positive", "no_done_for_negative", "reward_0_for_positive", "reward_0_for_negative",
                   "reward_n2_for_intervention", "reward_1_for_all", "use_weighted_reward", "remove_negative",
-                  "adaptive_batch_size", "add_bc_loss"]:
+                  "adaptive_batch_size", "add_bc_loss", "only_bc_loss"]:
             if k in kwargs:
                 v = kwargs.pop(k)
                 assert v in ["True", "False"]
@@ -181,8 +181,13 @@ class PVPTD3(TD3):
                     replay_data.interventions.flatten().sum() + 1e-5
                 )
                 # masked_bc_loss = masked_bc_loss.mean()
-                if self.extra_config["add_bc_loss"]:
-                    actor_loss += masked_bc_loss * self.extra_config["bc_loss_weight"]
+
+                if self.extra_config["only_bc_loss"]:
+                    actor_loss = masked_bc_loss
+
+                else:
+                    if self.extra_config["add_bc_loss"]:
+                        actor_loss += masked_bc_loss * self.extra_config["bc_loss_weight"]
 
                 # Optimize the actor
                 self.actor.optimizer.zero_grad()
