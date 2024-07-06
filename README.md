@@ -16,7 +16,7 @@ Official release for the code used in paper: *Learning from Active Human Involve
 
 ```bash
 # Clone the code to local machine
-git clone https://github.com/metadriverse/pvp
+git clone https://github.com/pengzhenghao/pvp
 cd pvp
 
 # Create Conda environment
