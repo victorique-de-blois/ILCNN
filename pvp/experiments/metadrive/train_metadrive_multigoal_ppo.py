@@ -228,7 +228,7 @@ if __name__ == '__main__':
             # "traffic_density": 0.05,
             "crash_vehicle_done": False,
             "crash_object_done": False,
-            "cost_to_reward": False,
+            # "cost_to_reward": False,
 
             "out_of_route_done": True,  # Raise done if out of route.
             "num_scenarios": 50,  # There are totally 50 possible maps.
