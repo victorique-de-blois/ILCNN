@@ -225,7 +225,7 @@ if __name__ == '__main__':
         env_config.update({
             "num_scenarios": 100,
             "accident_prob": 0.8,
-            "traffic_density": 0.05,
+            # "traffic_density": 0.05,
             "crash_vehicle_done": False,
             "crash_object_done": False,
             "cost_to_reward": False,
@@ -233,7 +233,7 @@ if __name__ == '__main__':
             "out_of_route_done": True,  # Raise done if out of route.
             "num_scenarios": 50,  # There are totally 50 possible maps.
             "start_seed": 100,  # We will use the map 100~150 as the default training environment.
-            "traffic_density": 0.06,
+            # "traffic_density": 0.06,
 
         })
 
