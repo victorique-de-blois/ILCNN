@@ -8,6 +8,10 @@ import argparse
 import os
 from pathlib import Path
 import uuid
+import torch
+import torch.nn as nn
+from pvp.sb3.common.policies import BaseFeaturesExtractor
+
 
 from pvp.experiments.metadrive.egpo.fakehuman_env import FakeHumanEnv
 from pvp.experiments.metadrive.human_in_the_loop_env import HumanInTheLoopEnv
@@ -228,6 +232,31 @@ class BBoxFeatureExtractor(BaseFeaturesExtractor):
         output_token = self.transformer(features, steps)  # Apply the transformer
         return output_token
 
+class GRUFeatureExtractor(BaseFeaturesExtractor):
+    def __init__(
+            self, observation_space, features_dim, gru_hidden_dim=128, horizon=10, net_arch=(256,),
+            use_continuous_action_space=False,
+            transformer_hidden_dim=None, num_transformer_layers=None, num_transformer_heads=None
+    ):
+        super().__init__(observation_space, features_dim)
+
+        obs_flat_dim = observation_space["obs"].shape[1:]
+        obs_flat_dim = np.prod(obs_flat_dim)
+
+        self.input_fc = nn.Sequential(*create_mlp(input_dim=obs_flat_dim, output_dim=features_dim, net_arch=[]))
+        self.gru = nn.GRU(
+            input_size=features_dim,
+            hidden_size=128,
+            num_layers=2,
+            batch_first=True
+        )
+        # self.output_fc = nn.Linear(gru_hidden_dim, features_dim)
+
+    def forward(self, observations):
+        obs_features = self.input_fc(observations["obs"])
+        gru_out, _ = self.gru(obs_features)
+        output = gru_out[:, -1, :]
+        return output
 
 class PVPCritic(ContinuousCritic):
     def __init__(self, *args, **kwargs):
@@ -337,6 +366,7 @@ class HistoryWrapper(gym.Wrapper):
         obs_dict = {
             "obs": space_stack(self.env.observation_space, obs_horizon),
             "action": space_stack(self.env.action_space, obs_horizon),
+            "timestep_pad_mask": gym.spaces.Box(shape=(obs_horizon,), low=0, high=1, dtype=np.float32),
         }
         # if self.unwrapped.config.use_low_state_obs:
         #     # TODO: The shape is hardcoded here.
@@ -486,6 +516,7 @@ if __name__ == '__main__':
             # intervention_start_stop_td=args.intervention_start_stop_td,
             adaptive_batch_size=args.adaptive_batch_size,
             bc_loss_weight=args.bc_loss_weight,
+            only_bc_loss="False",
             add_bc_loss="True" if args.bc_loss_weight > 0.0 else "False",
             use_balance_sample=True,
             agent_data_ratio=1.0,
@@ -500,7 +531,7 @@ if __name__ == '__main__':
 
             policy=PVPContinuousPolicy,
             policy_kwargs = dict(
-                features_extractor_class=BBoxFeatureExtractor,
+                features_extractor_class=GRUFeatureExtractor,
                 features_extractor_kwargs=dict(
                     features_dim=128,
                     transformer_hidden_dim=512,
