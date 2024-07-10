@@ -242,18 +242,28 @@ class GRUFeatureExtractor(BaseFeaturesExtractor):
 
         obs_flat_dim = observation_space["obs"].shape[1:]
         obs_flat_dim = np.prod(obs_flat_dim)
+        obs_flat_dim += 2
 
         self.input_fc = nn.Sequential(*create_mlp(input_dim=obs_flat_dim, output_dim=features_dim, net_arch=[]))
         self.gru = nn.GRU(
             input_size=features_dim,
-            hidden_size=128,
-            num_layers=2,
+            hidden_size=features_dim,
+            num_layers=1,
             batch_first=True
         )
         # self.output_fc = nn.Linear(gru_hidden_dim, features_dim)
 
     def forward(self, observations):
-        obs_features = self.input_fc(observations["obs"])
+
+        if observations['action'].shape[1] != observations['obs'].shape[1]:
+            act = observations["action"][:, 1:]
+            obs = torch.cat([act, observations["obs"]], dim=-1)
+        else:
+            act = observations["action"][:, 1:]
+            act = torch.cat([act, torch.zeros_like(act[:, :1])], dim=1)
+            obs = torch.cat([act, observations["obs"]], dim=-1)
+
+        obs_features = self.input_fc(obs)
         gru_out, _ = self.gru(obs_features)
         output = gru_out[:, -1, :]
         return output
