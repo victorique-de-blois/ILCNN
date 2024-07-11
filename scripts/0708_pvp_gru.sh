@@ -12,7 +12,7 @@ for i in {0..3}
 do
     CUDA_VISIBLE_DEVICES=$i \
     nohup python pvp/experiments/metadrive/train_pvp_metadrive_fakehuman_transformer.py \
-    --exp_name=0710_pvp_bcloss1_gru_larger_res \
+    --exp_name=0711_pvp_bcloss1_nogru_larger_res_sanitycheck \
     --bc_loss_weight=1.0 \
     --wandb \
     --wandb_project=pvp2024 \

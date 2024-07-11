@@ -256,17 +256,17 @@ class GRUFeatureExtractor(BaseFeaturesExtractor):
 
     def forward(self, observations):
 
-        if observations['action'].shape[1] != observations['obs'].shape[1]:
-            act = observations["action"][:, 1:]
-            obs = torch.cat([act, observations["obs"]], dim=-1)
-        else:
-            act = observations["action"][:, 1:]
-            act = torch.cat([act, torch.zeros_like(act[:, :1])], dim=1)
-            obs = torch.cat([act, observations["obs"]], dim=-1)
-
-        obs_features = self.input_fc(obs)
-        gru_out, _ = self.gru(obs_features)
-        output = gru_out[:, -1, :]
+        # if observations['action'].shape[1] != observations['obs'].shape[1]:
+        #     act = observations["action"][:, 1:]
+        #     obs = torch.cat([act, observations["obs"]], dim=-1)
+        # else:
+        #     act = observations["action"][:, 1:]
+        #     act = torch.cat([act, torch.zeros_like(act[:, :1])], dim=1)
+        #     obs = torch.cat([act, observations["obs"]], dim=-1)
+        #
+        # obs_features = self.input_fc(obs)
+        # gru_out, _ = self.gru(obs_features)
+        # output = gru_out[:, -1, :]
 
         # Residual:
         if observations['action'].shape[1] != observations['obs'].shape[1]:
@@ -274,7 +274,8 @@ class GRUFeatureExtractor(BaseFeaturesExtractor):
         else:
             forward_obs = torch.cat([observations["obs"][:, -1], torch.zeros_like(act[:, -1])], dim=-1)
         forward_output = self.forward_fc(forward_obs)
-        output = output + forward_output
+        # output = output + forward_output
+        output = forward_output
 
         return output
 
