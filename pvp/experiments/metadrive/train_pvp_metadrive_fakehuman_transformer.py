@@ -244,11 +244,11 @@ class GRUFeatureExtractor(BaseFeaturesExtractor):
         obs_flat_dim = np.prod(obs_flat_dim)
         obs_flat_dim += 2
 
-        self.input_fc = nn.Sequential(*create_mlp(input_dim=obs_flat_dim, output_dim=features_dim, net_arch=[]))
+        self.input_fc = nn.Sequential(*create_mlp(input_dim=obs_flat_dim, output_dim=features_dim, net_arch=[256, 256,]))
         self.gru = nn.GRU(
-            input_size=features_dim,
-            hidden_size=features_dim,
-            num_layers=1,
+            input_size=256,
+            hidden_size=256,
+            num_layers=2,
             batch_first=True
         )
         # self.output_fc = nn.Linear(gru_hidden_dim, features_dim)
@@ -543,13 +543,13 @@ if __name__ == '__main__':
             policy_kwargs = dict(
                 features_extractor_class=GRUFeatureExtractor,
                 features_extractor_kwargs=dict(
-                    features_dim=128,
+                    features_dim=256,
                     transformer_hidden_dim=512,
                     horizon=10 + 1,
                     use_continuous_action_space=True,
                     net_arch=[],
                 ),
-                net_arch=[256,],
+                net_arch=[],
                 one_hot_discrete=False,
 
                 share_features_extractor=False,
