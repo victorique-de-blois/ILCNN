@@ -92,7 +92,7 @@ if __name__ == '__main__':
     parser.add_argument("--wandb", action="store_true", help="Set to True to upload stats to wandb.")
     parser.add_argument("--eval", action="store_true")
     parser.add_argument("--seed", default=0, type=int, help="The random seed.")
-    parser.add_argument("--penalty", default=2.0, type=float)
+    # parser.add_argument("--penalty", default=2.0, type=float)
     # parser.add_argument("--driving_reward", default=1.0, type=float)
     args = parser.parse_args()
 
@@ -191,6 +191,29 @@ if __name__ == '__main__':
             #
             # map_config=dict(lane_num=2),
         )
+
+        env_config.update({
+
+            "traffic_density": 0.06,
+            "use_multigoal_intersection": False,
+            "num_scenarios": 1000,
+            "start_seed": 100,
+
+            "use_render": bool(args.ckpt),
+
+            # "num_scenarios": 100,
+            "accident_prob": 0.8,
+            # "traffic_density": 0.05,
+            "crash_vehicle_done": False,
+            "crash_object_done": False,
+            # "cost_to_reward": False,
+
+            "out_of_route_done": True,  # Raise done if out of route.
+            # "num_scenarios": 50,  # There are totally 50 possible maps.
+            # "start_seed": 100,  # We will use the map 100~150 as the default training environment.
+            # "traffic_density": 0.06,
+
+        })
 
         wrapped = create_gym_wrapper(MultiGoalWrapped)
 

@@ -193,6 +193,8 @@ if __name__ == '__main__':
                 i['route_completion/goals/default'] = i['route_completion/goals/{}'.format(self.current_goal)]
                 i['arrive_dest/goals/default'] = i['arrive_dest/goals/{}'.format(self.current_goal)]
 
+                # print("CURRENT RANDOM SEED: ", self.current_seed)
+
                 return o, i
 
 
@@ -223,6 +225,9 @@ if __name__ == '__main__':
         )
 
         env_config.update({
+
+            "use_render": bool(args.ckpt),
+
             "num_scenarios": 100,
             "accident_prob": 0.8,
             # "traffic_density": 0.05,
@@ -302,14 +307,22 @@ if __name__ == '__main__':
     callbacks = CallbackList(callbacks)
 
     # ===== Setup the training algorithm =====
-    model = PPO(**config["algo"])
+
 
     if args.ckpt:
+
+        config["algo"]["learning_rate"] = 0.0
+        model = PPO(**config["algo"])
+
         ckpt = Path(args.ckpt)
         print(f"Loading checkpoint from {ckpt}!")
         from pvp.sb3.common.save_util import load_from_zip_file
         data, params, pytorch_variables = load_from_zip_file(ckpt, device=model.device, print_system_info=False)
+
         model.set_parameters(params, exact_match=True, device=model.device)
+
+    else:
+        model = PPO(**config["algo"])
 
     # ===== Launch training =====
     model.learn(
