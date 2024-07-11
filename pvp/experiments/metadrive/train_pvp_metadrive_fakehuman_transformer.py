@@ -242,16 +242,17 @@ class GRUFeatureExtractor(BaseFeaturesExtractor):
 
         obs_flat_dim = observation_space["obs"].shape[1:]
         obs_flat_dim = np.prod(obs_flat_dim)
-        obs_flat_dim += 2
+        obs_flat_dim_with_action = obs_flat_dim + 2
 
-        self.input_fc = nn.Sequential(*create_mlp(input_dim=obs_flat_dim, output_dim=features_dim, net_arch=[256, 256,]))
+        self.input_fc = nn.Sequential(*create_mlp(input_dim=obs_flat_dim_with_action, output_dim=features_dim, net_arch=[256, 256,]))
         self.gru = nn.GRU(
             input_size=256,
-            hidden_size=256,
+            hidden_size=features_dim,
             num_layers=2,
             batch_first=True
         )
         # self.output_fc = nn.Linear(gru_hidden_dim, features_dim)
+        self.forward_fc = nn.Sequential(*create_mlp(input_dim=obs_flat_dim_with_action, output_dim=features_dim, net_arch=[256, 256,]))
 
     def forward(self, observations):
 
@@ -266,6 +267,15 @@ class GRUFeatureExtractor(BaseFeaturesExtractor):
         obs_features = self.input_fc(obs)
         gru_out, _ = self.gru(obs_features)
         output = gru_out[:, -1, :]
+
+        # Residual:
+        if observations['action'].shape[1] != observations['obs'].shape[1]:
+            forward_obs = torch.cat([observations["obs"][:, -1], observations["action"][:, -1]], dim=-1)
+        else:
+            forward_obs = torch.cat([observations["obs"][:, -1], torch.zeros_like(act[:, -1])], dim=-1)
+        forward_output = self.forward_fc(forward_obs)
+        output = output + forward_output
+
         return output
 
 class PVPCritic(ContinuousCritic):
