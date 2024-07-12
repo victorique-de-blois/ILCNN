@@ -272,6 +272,7 @@ class GRUFeatureExtractor(BaseFeaturesExtractor):
         if observations['action'].shape[1] != observations['obs'].shape[1]:
             forward_obs = torch.cat([observations["obs"][:, -1], observations["action"][:, -1]], dim=-1)
         else:
+            act = observations["action"][:, 1:]
             forward_obs = torch.cat([observations["obs"][:, -1], torch.zeros_like(act[:, -1])], dim=-1)
         forward_output = self.forward_fc(forward_obs)
         # output = output + forward_output
