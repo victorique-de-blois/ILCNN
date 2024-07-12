@@ -215,7 +215,7 @@ if __name__ == '__main__':
             "num_scenarios": 1000,
             "start_seed": 100,
 
-            "use_render": bool(args.ckpt),
+            "use_render": False,
 
             # "num_scenarios": 100,
             "accident_prob": 0.8,
