@@ -17,11 +17,9 @@ from pvp.utils.utils import get_time_str
 
 from metadrive.envs.multigoal_intersection import MultiGoalIntersectionEnv
 from metadrive.envs.gym_wrapper import create_gym_wrapper
-
 import pathlib
 
 PROJECT_ROOT = pathlib.Path(__file__).parent.parent.parent.parent.resolve()
-
 
 class MultiGoalWrapped(MultiGoalIntersectionEnv):
     current_goal = None
@@ -187,7 +185,6 @@ if __name__ == '__main__':
             decision_repeat=5,
             horizon=500,  # to speed up training
 
-            use_multigoal_intersection=False,
             num_scenarios=1000,
             start_seed=1000,
 
@@ -200,7 +197,21 @@ if __name__ == '__main__':
         env_config.update({
 
             "traffic_density": 0.06,
-            "use_multigoal_intersection": False,
+
+            # =====================================================================================================
+            # =====================================================================================================
+            # =====================================================================================================
+            # =====================================================================================================
+            # =====================================================================================================
+            "use_multigoal_intersection": True,
+            "out_of_route_done": False,  # Raise done if out of route.
+            # =====================================================================================================
+            # =====================================================================================================
+            # =====================================================================================================
+            # =====================================================================================================
+            # =====================================================================================================
+
+
             "num_scenarios": 1000,
             "start_seed": 100,
 
@@ -213,7 +224,6 @@ if __name__ == '__main__':
             "crash_object_done": False,
             # "cost_to_reward": False,
 
-            "out_of_route_done": True,  # Raise done if out of route.
             # "num_scenarios": 50,  # There are totally 50 possible maps.
             # "start_seed": 100,  # We will use the map 100~150 as the default training environment.
             # "traffic_density": 0.06,
