@@ -2,7 +2,6 @@ import argparse
 import os
 import os.path as osp
 import numpy as np
-# from pvp.train_metadrive.human_in_the_loop_env import HumanInTheLoopEnv
 from pvp.sb3.common.callbacks import CallbackList, CheckpointCallback
 from pvp.sb3.common.monitor import Monitor
 from pvp.sb3.common.wandb_callback import WandbCallback
@@ -11,7 +10,6 @@ from pvp.sb3.sac.sac import ReplayBuffer
 from pvp.sb3.sac.policies import SACPolicy
 from pvp.sb3.common.vec_env.subproc_vec_env import SubprocVecEnv
 from pvp.sb3.common.vec_env.dummy_vec_env import DummyVecEnv
-# from drivingforce.human_in_the_loop.common import baseline_eval_config
 
 from pvp.utils.utils import get_time_str
 
@@ -20,6 +18,7 @@ from metadrive.envs.gym_wrapper import create_gym_wrapper
 import pathlib
 
 PROJECT_ROOT = pathlib.Path(__file__).parent.parent.parent.parent.resolve()
+
 
 class MultiGoalWrapped(MultiGoalIntersectionEnv):
     current_goal = None
@@ -63,31 +62,6 @@ class MultiGoalWrapped(MultiGoalIntersectionEnv):
         return o, i
 
 
-
-# def make_eval_env():
-#     from metadrive.envs.multigoal_intersection import MultiGoalIntersectionEnv
-#     from metadrive.envs.gym_wrapper import create_gym_wrapper
-#
-#     env_config = dict(
-#         use_render=False,
-#         manual_control=False,
-#         vehicle_config=dict(show_lidar=False, show_navi_mark=True, show_line_to_navi_mark=True),
-#         accident_prob=0.0,
-#         decision_repeat=5,
-#         horizon=500,  # to speed up training
-#     )
-#
-#     return create_gym_wrapper(MultiGoalIntersectionEnv)(env_config)
-
-
-# def make_eval_env(log_dir):
-#     def _init():
-#         env = Monitor(env=HumanInTheLoopEnv(config=baseline_eval_config), filename=os.path.join(log_dir, "eval"))
-#         return env
-#
-#     return _init
-
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--exp_name", default="TEST", type=str, help="The experiment name.")
@@ -118,9 +92,6 @@ if __name__ == '__main__':
 
     # ===== Setup the config =====
     config = dict(
-        # Environment config
-        # env_config={"main_exp": False, "horizon": 1500},
-
         # Algorithm config
         algo=dict(
             policy=SACPolicy,
@@ -136,22 +107,8 @@ if __name__ == '__main__':
             use_sde=True,
             sde_sample_freq=64,
 
-            # optimization=dict(actor_learning_rate=1e-4, critic_learning_rate=1e-4, entropy_learning_rate=1e-4),
-            #
-            # prioritized_replay=False,
-            # horizon=1500,
-            # target_network_update_freq=1,
-            # timesteps_per_iteration=1000,
-            # clip_actions=False,
-            # normalize_actions=True,
-
             learning_starts=10000 if not args.eval else 0,  ###
             batch_size=256,
-            # tau=0.005,
-            # gamma=0.99,
-            # train_freq=1,
-            # target_policy_noise=0,
-            # policy_delay=1,
 
             action_noise=None,
             tensorboard_log=log_dir,
@@ -172,6 +129,7 @@ if __name__ == '__main__':
         log_dir=log_dir
     )
 
+
     # ===== Setup the training environment =====
 
     def make_train_env(render=False):
@@ -179,56 +137,22 @@ if __name__ == '__main__':
         env_config = dict(
             use_render=render,
             manual_control=False,
-            vehicle_config=dict(show_lidar=False, show_navi_mark=True, show_line_to_navi_mark=True, show_line_to_dest=True, show_dest_mark=True),
-            # accident_prob=0.0,
-            # traffic_density=0.1,
+            vehicle_config=dict(show_lidar=False, show_navi_mark=True, show_line_to_navi_mark=True,
+                                show_line_to_dest=True, show_dest_mark=True),
             decision_repeat=5,
             horizon=500,  # to speed up training
 
+            traffic_density=0.06,
+
+            use_multigoal_intersection=True,
+            out_of_route_done=False,  # Raise done if out of route.
+
             num_scenarios=1000,
-            start_seed=1000,
-
-            # out_of_road_penalty=0.5,
-            # out_of_route_penalty=0.5,
-            #
-            # map_config=dict(lane_num=2),
+            start_seed=100,
+            accident_prob=0.8,
+            crash_vehicle_done=False,
+            crash_object_done=False,
         )
-
-        env_config.update({
-
-            "traffic_density": 0.06,
-
-            # =====================================================================================================
-            # =====================================================================================================
-            # =====================================================================================================
-            # =====================================================================================================
-            # =====================================================================================================
-            "use_multigoal_intersection": True,
-            "out_of_route_done": False,  # Raise done if out of route.
-            # =====================================================================================================
-            # =====================================================================================================
-            # =====================================================================================================
-            # =====================================================================================================
-            # =====================================================================================================
-
-
-            "num_scenarios": 1000,
-            "start_seed": 100,
-
-            "use_render": False,
-
-            # "num_scenarios": 100,
-            "accident_prob": 0.8,
-            # "traffic_density": 0.05,
-            "crash_vehicle_done": False,
-            "crash_object_done": False,
-            # "cost_to_reward": False,
-
-            # "num_scenarios": 50,  # There are totally 50 possible maps.
-            # "start_seed": 100,  # We will use the map 100~150 as the default training environment.
-            # "traffic_density": 0.06,
-
-        })
 
         wrapped = create_gym_wrapper(MultiGoalWrapped)
 
@@ -278,6 +202,7 @@ if __name__ == '__main__':
         ckpt = str(PROJECT_ROOT / args.ckpt)
 
         from pvp.sb3.common.save_util import load_from_zip_file
+
         data, params, pytorch_variables = load_from_zip_file(ckpt, device=model.device, print_system_info=False)
 
         model.set_parameters(params, exact_match=True, device=model.device)
