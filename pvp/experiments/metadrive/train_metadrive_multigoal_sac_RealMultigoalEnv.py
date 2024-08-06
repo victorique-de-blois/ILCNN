@@ -213,7 +213,7 @@ if __name__ == '__main__':
     # ===== Launch training =====
     model.learn(
         # training
-        total_timesteps=300_0000,
+        total_timesteps=3_000_000,
         callback=callbacks,
         reset_num_timesteps=True,
 
