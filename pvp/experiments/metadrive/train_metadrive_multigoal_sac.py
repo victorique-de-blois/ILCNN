@@ -133,28 +133,11 @@ if __name__ == '__main__':
 
             # ===== Training =====
             learning_rate=dict(actor=1e-4, critic=1e-4, entropy=1e-4),
-
             use_sde_at_warmup=True,
             use_sde=True,
             sde_sample_freq=64,
-
-            # optimization=dict(actor_learning_rate=1e-4, critic_learning_rate=1e-4, entropy_learning_rate=1e-4),
-            #
-            # prioritized_replay=False,
-            # horizon=1500,
-            # target_network_update_freq=1,
-            # timesteps_per_iteration=1000,
-            # clip_actions=False,
-            # normalize_actions=True,
-
             learning_starts=10000 if not args.eval else 0,  ###
             batch_size=256,
-            # tau=0.005,
-            # gamma=0.99,
-            # train_freq=1,
-            # target_policy_noise=0,
-            # policy_delay=1,
-
             action_noise=None,
             tensorboard_log=log_dir,
             create_eval_env=False,
