@@ -80,30 +80,33 @@ class PVPTD3(TD3):
 
         stat_recorder = defaultdict(list)
 
+        should_concat = False
+        if self.replay_buffer.pos > 0 and self.human_data_buffer.pos > 0:
+            replay_data_human = self.human_data_buffer.sample(
+                int(batch_size), env=self._vec_normalize_env, return_all=True
+            )
+            human_data_size = len(replay_data_human.observations)
+            human_data_size = max(1, self.extra_config["agent_data_ratio"] * human_data_size)
+            human_data_size = int(human_data_size)
+            should_concat = True
+
+        elif self.human_data_buffer.pos > 0:
+            replay_data = self.human_data_buffer.sample(
+                batch_size, env=self._vec_normalize_env, return_all=True
+            )
+        elif self.replay_buffer.pos > 0:
+            replay_data = self.replay_buffer.sample(batch_size, env=self._vec_normalize_env)
+        else:
+            gradient_steps = 0
+
         for step in range(gradient_steps):
             self._n_updates += 1
             # Sample replay buffer
 
             if self.extra_config["adaptive_batch_size"]:
-                if self.replay_buffer.pos > 0 and self.human_data_buffer.pos > 0:
-                    replay_data_human = self.human_data_buffer.sample(
-                        int(batch_size), env=self._vec_normalize_env, return_all=True
-                    )
-                    human_data_size = len(replay_data_human.observations)
-                    human_data_size = max(1, self.extra_config["agent_data_ratio"] * human_data_size)
-                    human_data_size = int(human_data_size)
-
+                if should_concat:
                     replay_data_agent = self.replay_buffer.sample(human_data_size, env=self._vec_normalize_env)
                     replay_data = concat_samples(replay_data_agent, replay_data_human)
-                elif self.human_data_buffer.pos > 0:
-                    replay_data = self.human_data_buffer.sample(
-                        batch_size, env=self._vec_normalize_env, return_all=True
-                    )
-                elif self.replay_buffer.pos > 0:
-                    replay_data = self.replay_buffer.sample(batch_size, env=self._vec_normalize_env)
-                else:
-                    break
-
             else:
 
                 if self.replay_buffer.pos > batch_size and self.human_data_buffer.pos > batch_size:
