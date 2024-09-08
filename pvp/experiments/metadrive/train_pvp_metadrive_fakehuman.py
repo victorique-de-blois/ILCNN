@@ -26,6 +26,7 @@ if __name__ == '__main__':
     parser.add_argument(
         "--exp_name", default="pvp_metadrive_fakehuman", type=str, help="The name for this batch of experiments."
     )
+    parser.add_argument("--batch_size", default=128, type=int)
     parser.add_argument("--learning_starts", default=200, type=int)
     parser.add_argument("--save_freq", default=500, type=int)
     parser.add_argument("--seed", default=0, type=int, help="The random seed.")
@@ -114,7 +115,7 @@ if __name__ == '__main__':
             optimize_memory_usage=True,
             buffer_size=50_000,  # We only conduct experiment less than 50K steps
             learning_starts=args.learning_starts,  # The number of steps before
-            batch_size=128,  # Reduce the batch size for real-time copilot
+            batch_size=args.batch_size,  # Reduce the batch size for real-time copilot
             tau=0.005,
             gamma=0.99,
             train_freq=(1, "episode"),
