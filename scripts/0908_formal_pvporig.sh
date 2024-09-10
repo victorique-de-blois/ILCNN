@@ -10,7 +10,7 @@ for i in {0..7}
 do
     CUDA_VISIBLE_DEVICES=$i \
     nohup python pvp/experiments/metadrive/train_pvp_metadrive_fakehuman.py \
-    --exp_name=0908_pvporig_noadap_nobcloss_bs1024_seed \
+    --exp_name=0910_pvporig_noadap_withbcloss_bs1024_onlineupdate \
     --bc_loss_weight=0.0 \
     --batch_size=1024 \
     --adaptive_batch_size=False \
@@ -20,5 +20,5 @@ do
     --seed=${seeds[$i]} \
     --free_level=0.95 \
     --save_freq=10000 \
-    > "0908_pvporig_noadap_nobcloss_bs1024_seed${seeds[$i]}.log" 2>&1 &
+    > "seed${seeds[$i]}.log" 2>&1 &
 done

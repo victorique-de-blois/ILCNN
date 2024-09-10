@@ -118,7 +118,7 @@ if __name__ == '__main__':
             batch_size=args.batch_size,  # Reduce the batch size for real-time copilot
             tau=0.005,
             gamma=0.99,
-            train_freq=(1, "episode"),
+            train_freq=(1, "step"),
             action_noise=None,
             tensorboard_log=trial_dir,
             create_eval_env=False,
