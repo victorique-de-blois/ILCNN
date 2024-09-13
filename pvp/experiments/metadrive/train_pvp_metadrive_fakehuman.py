@@ -171,7 +171,7 @@ if __name__ == '__main__':
     # ===== Setup the callbacks =====
     save_freq = args.save_freq  # Number of steps per model checkpoint
     callbacks = [
-        CheckpointCallback(name_prefix="rl_model", verbose=1, save_freq=save_freq, save_path=str(trial_dir / "models"))
+        CheckpointCallback(name_prefix="rl_model", verbose=2, save_freq=save_freq, save_path=str(trial_dir / "models"))
     ]
     if use_wandb:
         callbacks.append(

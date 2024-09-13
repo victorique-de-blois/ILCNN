@@ -98,7 +98,7 @@ if __name__ == '__main__':
             optimize_memory_usage=True,
             buffer_size=50_000,  # We only conduct experiment less than 50K steps
             learning_starts=100,  # The number of steps before
-            batch_size=128,  # Reduce the batch size for real-time copilot
+            batch_size=1024,  # Reduce the batch size for real-time copilot
             tau=0.005,
             gamma=0.99,
             train_freq=(1, "step"),
@@ -187,8 +187,8 @@ if __name__ == '__main__':
 
         # eval
         eval_env=eval_env,
-        eval_freq=500,
-        n_eval_episodes=10,
+        eval_freq=200,
+        n_eval_episodes=100,
         eval_log_path=str(trial_dir),
 
         # logging
