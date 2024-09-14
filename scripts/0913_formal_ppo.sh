@@ -14,5 +14,5 @@ do
     --wandb_project=pvp2024 \
     --wandb_team=drivingforce \
     --seed=${seeds[$i]} \
-    > "seed${seeds[$i]}.log" 2>&1 &
+    > "ppo_seed${seeds[$i]}.log" 2>&1 &
 done
