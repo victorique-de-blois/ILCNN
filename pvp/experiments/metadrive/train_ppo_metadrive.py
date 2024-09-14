@@ -64,7 +64,7 @@ if __name__ == '__main__':
             # window_size=(1600, 1100),
             horizon=1500,
         ),
-        num_train_envs=32,
+        num_train_envs=4,
 
         # ===== Environment =====
         eval_env_config=dict(
@@ -78,7 +78,7 @@ if __name__ == '__main__':
         # ===== Training =====
         algo=dict(
             policy=ActorCriticPolicy,
-            n_steps=1024,  # n_steps * n_envs = total_batch_size
+            n_steps=512,  # n_steps * n_envs = total_batch_size
             n_epochs=20,
             learning_rate=5e-5,
             batch_size=256,
@@ -137,9 +137,9 @@ if __name__ == '__main__':
     eval_env = make_vec_env(_make_eval_env, n_envs=config["num_eval_envs"], vec_env_cls=vec_env_cls)
 
     # ===== Setup the callbacks =====
-    save_freq = 100_000  # Number of steps per model checkpoint
+    save_freq = 1_0000  # Number of steps per model checkpoint
     callbacks = [
-        CheckpointCallback(name_prefix="rl_model", verbose=1, save_freq=save_freq, save_path=str(trial_dir / "models"))
+        CheckpointCallback(name_prefix="rl_model", verbose=2, save_freq=save_freq, save_path=str(trial_dir / "models"))
     ]
     if use_wandb:
         callbacks.append(
@@ -166,13 +166,13 @@ if __name__ == '__main__':
     # ===== Launch training =====
     model.learn(
         # training
-        total_timesteps=10_000_000,
+        total_timesteps=10_0000,
         callback=callbacks,
         reset_num_timesteps=True,
 
         # eval
         eval_env=eval_env,
-        eval_freq=100_000,
+        eval_freq=200,
         n_eval_episodes=100,
         eval_log_path=str(trial_dir),
 
