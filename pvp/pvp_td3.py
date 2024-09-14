@@ -190,7 +190,8 @@ class PVPTD3(TD3):
 
                 else:
                     if self.extra_config["add_bc_loss"]:
-                        actor_loss += masked_bc_loss * self.extra_config["bc_loss_weight"]
+                        # actor_loss += masked_bc_loss * self.extra_config["bc_loss_weight"]
+                        actor_loss += bc_loss.mean() * self.extra_config["bc_loss_weight"]
 
                 # Optimize the actor
                 self.actor.optimizer.zero_grad()
