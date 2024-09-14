@@ -26,8 +26,8 @@ if __name__ == '__main__':
     parser.add_argument(
         "--exp_name", default="pvp_metadrive_fakehuman", type=str, help="The name for this batch of experiments."
     )
-    parser.add_argument("--batch_size", default=128, type=int)
-    parser.add_argument("--learning_starts", default=200, type=int)
+    parser.add_argument("--batch_size", default=1024, type=int)
+    parser.add_argument("--learning_starts", default=10, type=int)
     parser.add_argument("--save_freq", default=500, type=int)
     parser.add_argument("--seed", default=0, type=int, help="The random seed.")
     parser.add_argument("--wandb", action="store_true", help="Set to True to upload stats to wandb.")
