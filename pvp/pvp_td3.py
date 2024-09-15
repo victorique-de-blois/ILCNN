@@ -189,7 +189,8 @@ class PVPTD3(TD3):
                 # masked_bc_loss = masked_bc_loss.mean()
 
                 if self.extra_config["only_bc_loss"]:
-                    actor_loss = masked_bc_loss  #.mean()
+                    # actor_loss = masked_bc_loss  #.mean()
+                    actor_loss = bc_loss.mean()  #.mean()
 
                 else:
                     if self.extra_config["add_bc_loss"]:

@@ -24,34 +24,51 @@ seeds=(0 100 200 300 400 500 600 700)
 #done
 
 
+## Loop over each GPU
+#for i in {0..7}
+#do
+#    CUDA_VISIBLE_DEVICES=$i \
+#    nohup python pvp/experiments/metadrive/train_pvp_metadrive_fakehuman.py \
+#    --exp_name=0915_hgdagger \
+#    --wandb \
+#    --wandb_project=pvp2024 \
+#    --wandb_team=drivingforce \
+#    --only_bc_loss=True \
+#    --bc_loss_weight=1.0 \
+#    --seed=${seeds[$i]} \
+#    > "0915-1_seed${seeds[$i]}.log" 2>&1 &
+#done
+#
+#
+#
+## Loop over each GPU
+#for i in {0..7}
+#do
+#    CUDA_VISIBLE_DEVICES=$i \
+#    nohup python pvp/experiments/metadrive/train_pvp_metadrive_fakehuman.py \
+#    --exp_name=0915_bcandploss \
+#    --wandb \
+#    --wandb_project=pvp2024 \
+#    --wandb_team=drivingforce \
+#    --only_bc_loss=False \
+#    --bc_loss_weight=1.0 \
+#    --seed=${seeds[$i]} \
+#    > "0915-2_seed${seeds[$i]}.log" 2>&1 &
+#done
+
+
 # Loop over each GPU
 for i in {0..7}
 do
     CUDA_VISIBLE_DEVICES=$i \
     nohup python pvp/experiments/metadrive/train_pvp_metadrive_fakehuman.py \
-    --exp_name=0915_hgdagger \
-    --wandb \
-    --wandb_project=pvp2024 \
-    --wandb_team=drivingforce \
-    --only_bc_loss=True \
-    --bc_loss_weight=1.0 \
-    --seed=${seeds[$i]} \
-    > "0915-1_seed${seeds[$i]}.log" 2>&1 &
-done
-
-
-
-# Loop over each GPU
-for i in {0..7}
-do
-    CUDA_VISIBLE_DEVICES=$i \
-    nohup python pvp/experiments/metadrive/train_pvp_metadrive_fakehuman.py \
-    --exp_name=0915_bcandploss \
+    --exp_name=0915_BCOnPureExpertData \
     --wandb \
     --wandb_project=pvp2024 \
     --wandb_team=drivingforce \
     --only_bc_loss=False \
     --bc_loss_weight=1.0 \
+    --free_level=-10000 \
     --seed=${seeds[$i]} \
     > "0915-2_seed${seeds[$i]}.log" 2>&1 &
 done
