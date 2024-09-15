@@ -141,15 +141,18 @@ class PVPTD3(TD3):
             # Compute critic loss
             critic_loss = []
             for (current_q_behavior, current_q_novice) in zip(current_q_behavior_values, current_q_novice_values):
-                if self.intervention_start_stop_td:
-                    l = 0.5 * F.mse_loss(
-                        replay_data.stop_td * current_q_behavior, replay_data.stop_td * target_q_values
-                    )
-
-                else:
-                    l = 0.5 * F.mse_loss(current_q_behavior, target_q_values)
+                # if self.intervention_start_stop_td:
+                #     l = 0.5 * F.mse_loss(
+                #         replay_data.stop_td * current_q_behavior, replay_data.stop_td * target_q_values
+                #     )
+                #
+                # else:
+                #     l = 0.5 * F.mse_loss(current_q_behavior, target_q_values)
 
                 # ====== The key of Proxy Value Objective =====
+
+                l = 0.0
+
                 l += th.mean(
                     replay_data.interventions * self.cql_coefficient *
                     F.mse_loss(
@@ -186,12 +189,12 @@ class PVPTD3(TD3):
                 # masked_bc_loss = masked_bc_loss.mean()
 
                 if self.extra_config["only_bc_loss"]:
-                    actor_loss = bc_loss.mean()
+                    actor_loss = masked_bc_loss  #.mean()
 
                 else:
                     if self.extra_config["add_bc_loss"]:
-                        # actor_loss += masked_bc_loss * self.extra_config["bc_loss_weight"]
-                        actor_loss += bc_loss.mean() * self.extra_config["bc_loss_weight"]
+                        actor_loss += masked_bc_loss * self.extra_config["bc_loss_weight"]
+                        # actor_loss += bc_loss.mean() * self.extra_config["bc_loss_weight"]
 
                 # Optimize the actor
                 self.actor.optimizer.zero_grad()
