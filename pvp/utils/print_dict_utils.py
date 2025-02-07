@@ -34,6 +34,9 @@ class SafeFallbackEncoder(json.JSONEncoder):
 
 
 def pretty_print(result):
+    import json
+    import yaml
+
     result = result.copy()
     result.update(config=None)  # drop config from pretty print
     result.update(hist_stats=None)  # drop hist_stats from pretty print
