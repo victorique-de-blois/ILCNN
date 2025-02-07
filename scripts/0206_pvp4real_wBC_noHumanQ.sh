@@ -22,5 +22,5 @@ do
     --bc_loss_weight=1.0 \
     --no_human_proxy_value_loss=True \
     --seed=${seeds[$i]} \
-    > ${EXP_NAME}_seed{seeds[$i]}.log 2>&1 &
+    > ${EXP_NAME}_seed${seeds[$i]}.log 2>&1 &
 done
