@@ -42,7 +42,7 @@ class PVPTD3(TD3):
         self.extra_config = {}
         for k in ["no_done_for_positive", "no_done_for_negative", "reward_0_for_positive", "reward_0_for_negative",
                   "reward_n2_for_intervention", "reward_1_for_all", "use_weighted_reward", "remove_negative",
-                  "adaptive_batch_size", "add_bc_loss", "only_bc_loss"]:
+                  "adaptive_batch_size", "add_bc_loss", "only_bc_loss", "no_human_proxy_value_loss"]:
             if k in kwargs:
                 v = kwargs.pop(k)
                 assert v in ["True", "False"]
@@ -77,6 +77,8 @@ class PVPTD3(TD3):
 
         # Update learning rate according to lr schedule
         self._update_learning_rate([self.actor.optimizer, self.critic.optimizer])
+
+        no_human_proxy_value_loss = self.extra_config["no_human_proxy_value_loss"]
 
         stat_recorder = defaultdict(list)
 
@@ -153,12 +155,17 @@ class PVPTD3(TD3):
 
                 l = 0.0
 
-                l += th.mean(
-                    replay_data.interventions * self.cql_coefficient *
-                    F.mse_loss(
-                        current_q_behavior, self.q_value_bound * th.ones_like(current_q_behavior), reduction="none"
+
+                if no_human_proxy_value_loss:
+                    pass
+                else:
+                    l += th.mean(
+                        replay_data.interventions * self.cql_coefficient *
+                        F.mse_loss(
+                            current_q_behavior, self.q_value_bound * th.ones_like(current_q_behavior), reduction="none"
+                        )
                     )
-                )
+
                 l += th.mean(
                     replay_data.interventions * self.cql_coefficient *
                     F.mse_loss(

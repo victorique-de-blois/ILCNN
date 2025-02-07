@@ -41,6 +41,7 @@ if __name__ == '__main__':
     #     "--intervention_start_stop_td", default=True, type=bool, help="Whether to use intervention_start_stop_td."
     # )
 
+    parser.add_argument("--no_human_proxy_value_loss", default="False", type=str)
     parser.add_argument("--adaptive_batch_size", default="False", type=str)
     parser.add_argument("--only_bc_loss", default="False", type=str)
     parser.add_argument("--ckpt", default="", type=str)
@@ -100,6 +101,7 @@ if __name__ == '__main__':
             adaptive_batch_size=args.adaptive_batch_size,
             bc_loss_weight=args.bc_loss_weight,
             only_bc_loss=args.only_bc_loss,
+            no_human_proxy_value_loss=args.no_human_proxy_value_loss,
             add_bc_loss="True" if args.bc_loss_weight > 0.0 else "False",
             use_balance_sample=True,
             agent_data_ratio=1.0,
