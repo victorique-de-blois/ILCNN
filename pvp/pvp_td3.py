@@ -186,20 +186,19 @@ class PVPTD3(TD3):
             if self._n_updates % self.policy_delay == 0:
                 # Compute actor loss
                 new_action = self.actor(replay_data.observations)
-                actor_loss = -self.critic.q1_forward(replay_data.observations, new_action).mean()
 
                 # BC loss on human data
                 bc_loss = F.mse_loss(replay_data.actions_behavior, new_action, reduction="none").mean(axis=-1)
                 masked_bc_loss = (replay_data.interventions.flatten() * bc_loss).sum() / (
                     replay_data.interventions.flatten().sum() + 1e-5
                 )
-                # masked_bc_loss = masked_bc_loss.mean()
 
                 if self.extra_config["only_bc_loss"]:
-                    # actor_loss = masked_bc_loss  #.mean()
-                    actor_loss = bc_loss.mean()  #.mean()
+                    actor_loss = masked_bc_loss
+                    # Critics will be completely useless.
 
                 else:
+                    actor_loss = -self.critic.q1_forward(replay_data.observations, new_action).mean()
                     if self.extra_config["add_bc_loss"]:
                         actor_loss += masked_bc_loss * self.extra_config["bc_loss_weight"]
                         # actor_loss += bc_loss.mean() * self.extra_config["bc_loss_weight"]
