@@ -5,27 +5,17 @@ from pathlib import Path
 from pvp.experiments.metadrive.human_in_the_loop_env import HumanInTheLoopEnv
 from pvp.sb3.common.callbacks import CallbackList, CheckpointCallback
 from pvp.sb3.common.monitor import Monitor
-from pvp.sb3.common.vec_env.subproc_vec_env import SubprocVecEnv
+from pvp.sb3.common.vec_env import SubprocVecEnv
 from pvp.sb3.common.wandb_callback import WandbCallback
 from pvp.sb3.td3.policies import TD3Policy
 from pvp.sb3.td3.td3 import TD3, ReplayBuffer
-from pvp.utils.utils import get_time_str
-import argparse
-import os
-from pathlib import Path
-
-from pvp.sb3.common.callbacks import CallbackList, CheckpointCallback
-from pvp.sb3.common.env_util import make_vec_env
-from pvp.sb3.common.vec_env import DummyVecEnv, SubprocVecEnv
-from pvp.sb3.common.wandb_callback import WandbCallback
-from pvp.sb3.ppo import PPO
-from pvp.sb3.ppo.policies import ActorCriticPolicy
 from pvp.utils.utils import get_time_str
 
 
 def register_env(make_env_fn, env_name):
     from gym.envs.registration import register
     register(id=env_name, entry_point=make_env_fn)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -122,21 +112,21 @@ if __name__ == '__main__':
 
 
     # ===== Also build the eval env =====
-    # def _make_eval_env():
-    #     eval_env_config = dict(
-    #         use_render=False,  # Open the interface
-    #         manual_control=False,  # Allow receiving control signal from external device
-    #         start_seed=1000,
-    #         horizon=1500,
-    #     )
-    #     from pvp.experiments.metadrive.human_in_the_loop_env import HumanInTheLoopEnv
-    #     from pvp.sb3.common.monitor import Monitor
-    #     eval_env = HumanInTheLoopEnv(config=eval_env_config)
-    #     eval_env = Monitor(env=eval_env, filename=str(trial_dir))
-    #     return eval_env
+    def _make_eval_env():
+        eval_env_config = dict(
+            use_render=False,  # Open the interface
+            manual_control=False,  # Allow receiving control signal from external device
+            start_seed=1000,
+            horizon=1500,
+        )
+        from pvp.experiments.metadrive.human_in_the_loop_env import HumanInTheLoopEnv
+        from pvp.sb3.common.monitor import Monitor
+        eval_env = HumanInTheLoopEnv(config=eval_env_config)
+        eval_env = Monitor(env=eval_env, filename=str(trial_dir))
+        return eval_env
 
-    eval_env = None
 
+    eval_env = SubprocVecEnv([_make_eval_env])
 
     # ===== Setup the callbacks =====
     callbacks = [
@@ -181,9 +171,9 @@ if __name__ == '__main__':
 
         # eval
         eval_env=eval_env,
-        eval_freq=5000,
-        # eval_freq=200,
-        n_eval_episodes=100,
+        # eval_freq=5000,
+        eval_freq=150,
+        n_eval_episodes=50,
         eval_log_path=str(trial_dir),
 
         # logging
