@@ -14,8 +14,10 @@ for i in {0..7}
 do
     CUDA_VISIBLE_DEVICES=$i \
     nohup python pvp/experiments/metadrive/train_ppo_metadrive.py \
-    --only_bc_loss=True \
+    --exp_name=${EXP_NAME} \
+    --wandb \
+    --wandb_project=pvp2024 \
+    --wandb_team=drivingforce \
     --seed=${seeds[$i]} \
-    --free_level=-10000.0 \
     > ${EXP_NAME}_seed${seeds[$i]}.log 2>&1 &
 done
