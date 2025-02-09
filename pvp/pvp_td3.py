@@ -32,13 +32,6 @@ class PVPTD3(TD3):
         if "replay_buffer_class" not in kwargs:
             kwargs["replay_buffer_class"] = HACOReplayBuffer
 
-        if "intervention_start_stop_td" in kwargs:
-            self.intervention_start_stop_td = kwargs["intervention_start_stop_td"]
-            kwargs.pop("intervention_start_stop_td")
-        else:
-            # Default to set it True. We find this can improve the performance and user experience.
-            self.intervention_start_stop_td = True
-
         self.extra_config = {}
         for k in ["no_done_for_positive", "no_done_for_negative", "reward_0_for_positive", "reward_0_for_negative",
                   "reward_n2_for_intervention", "reward_1_for_all", "use_weighted_reward", "remove_negative",
@@ -143,18 +136,7 @@ class PVPTD3(TD3):
             # Compute critic loss
             critic_loss = []
             for (current_q_behavior, current_q_novice) in zip(current_q_behavior_values, current_q_novice_values):
-                # if self.intervention_start_stop_td:
-                #     l = 0.5 * F.mse_loss(
-                #         replay_data.stop_td * current_q_behavior, replay_data.stop_td * target_q_values
-                #     )
-                #
-                # else:
-                #     l = 0.5 * F.mse_loss(current_q_behavior, target_q_values)
-
-                # ====== The key of Proxy Value Objective =====
-
-                l = 0.0
-
+                l = 0.5 * F.mse_loss(current_q_behavior, target_q_values)
 
                 if no_human_proxy_value_loss:
                     pass
