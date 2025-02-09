@@ -136,7 +136,7 @@ class PVPTD3(TD3):
             # Compute critic loss
             critic_loss = []
             for (current_q_behavior, current_q_novice) in zip(current_q_behavior_values, current_q_novice_values):
-                l = 0.5 * F.mse_loss(current_q_behavior, target_q_values)
+                l = F.mse_loss(current_q_behavior, target_q_values)
 
                 if no_human_proxy_value_loss:
                     pass
