@@ -19,7 +19,7 @@ do
     --wandb_project=pvp2024 \
     --wandb_team=drivingforce \
     --only_bc_loss=False \
-    --bc_loss_weight=1.0 \
+    --bc_loss_weight=0.0 \
     --with_human_proxy_value_loss=True \
     --with_agent_proxy_value_loss=False \
     --seed=${seeds[$i]} \
