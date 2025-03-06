@@ -42,7 +42,9 @@ def register_env(make_env_fn, env_name):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--exp_name", default="ppo_metadrive_multigoal", type=str, help="The name for this batch of experiments.")
+    parser.add_argument(
+        "--exp_name", default="ppo_metadrive_multigoal", type=str, help="The name for this batch of experiments."
+    )
     parser.add_argument("--seed", default=0, type=int, help="The random seed.")
     parser.add_argument("--lane_line_detector", default=0, type=int)
     parser.add_argument("--vehicle_detector", default=120, type=int)
@@ -59,7 +61,6 @@ if __name__ == '__main__':
     #     args.wandb_team = "drivingforce"
     # if args.wandb_project is None:
     #     args.wandb_project = "pvp2024"
-
 
     project_name = "brandon"
     team_name = "drivingforce"
@@ -151,8 +152,6 @@ if __name__ == '__main__':
     #     train_env = Monitor(env=train_env, filename=str(trial_dir))
     #     return train_env
 
-
-
     def make_train_env():
         class MultiGoalWrapped(MultiGoalIntersectionEnv):
             current_goal = None
@@ -175,12 +174,7 @@ if __name__ == '__main__':
 
                 # Sample a goal from the goal set
                 if self.config["use_multigoal_intersection"]:
-                    p = {
-                        "right_turn": 0.3,
-                        "left_turn": 0.3,
-                        "go_straight": 0.1,
-                        "u_turn": 0.3
-                    }
+                    p = {"right_turn": 0.3, "left_turn": 0.3, "go_straight": 0.1, "u_turn": 0.3}
                     self.current_goal = np.random.choice(list(p.keys()), p=list(p.values()))
 
                 else:
@@ -197,18 +191,15 @@ if __name__ == '__main__':
 
                 return o, i
 
-
-
         env_config = dict(
             use_render=False,
             manual_control=False,
             vehicle_config=dict(
-                show_navi_mark = True,
-                show_line_to_navi_mark = True,
-                show_lidar = False,
-                show_side_detector = True,
-                show_lane_line_detector = True,
-
+                show_navi_mark=True,
+                show_line_to_navi_mark=True,
+                show_lidar=False,
+                show_side_detector=True,
+                show_lane_line_detector=True,
                 lane_line_detector=dict(num_lasers=args.lane_line_detector),
                 lidar=dict(num_lasers=args.vehicle_detector),
             ),
@@ -218,29 +209,26 @@ if __name__ == '__main__':
             # horizon=500,  # to speed up training
             #
             # out_of_route_penalty=1,
-
             use_multigoal_intersection=False,
             num_scenarios=1000,
             start_seed=1000,
         )
 
-        env_config.update({
-
-            "use_render": bool(args.ckpt),
-
-            "num_scenarios": 100,
-            "accident_prob": 0.8,
-            # "traffic_density": 0.05,
-            "crash_vehicle_done": False,
-            "crash_object_done": False,
-            # "cost_to_reward": False,
-
-            "out_of_route_done": True,  # Raise done if out of route.
-            "num_scenarios": 50,  # There are totally 50 possible maps.
-            "start_seed": 100,  # We will use the map 100~150 as the default training environment.
-            # "traffic_density": 0.06,
-
-        })
+        env_config.update(
+            {
+                "use_render": bool(args.ckpt),
+                "num_scenarios": 100,
+                "accident_prob": 0.8,
+                # "traffic_density": 0.05,
+                "crash_vehicle_done": False,
+                "crash_object_done": False,
+                # "cost_to_reward": False,
+                "out_of_route_done": True,  # Raise done if out of route.
+                "num_scenarios": 50,  # There are totally 50 possible maps.
+                "start_seed": 100,  # We will use the map 100~150 as the default training environment.
+                # "traffic_density": 0.06,
+            }
+        )
 
         return create_gym_wrapper(MultiGoalWrapped)(env_config)
 
@@ -265,8 +253,6 @@ if __name__ == '__main__':
     #     )
     #
     #     return create_gym_wrapper(MultiGoalIntersectionEnv)(env_config)
-
-
 
     # train_env_name = "metadrive_train-v0"
     # register_env(_make_train_env, train_env_name)
@@ -307,7 +293,6 @@ if __name__ == '__main__':
     callbacks = CallbackList(callbacks)
 
     # ===== Setup the training algorithm =====
-
 
     if args.ckpt:
 

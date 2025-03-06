@@ -39,12 +39,7 @@ class MultiGoalWrapped(MultiGoalIntersectionEnv):
         o, i = super().reset(*args, **kwargs)
 
         # Sample a goal from the goal set
-        p = {
-            "right_turn": 0.3,
-            "left_turn": 0.3,
-            "go_straight": 0.1,
-            "u_turn": 0.3
-        }
+        p = {"right_turn": 0.3, "left_turn": 0.3, "go_straight": 0.1, "u_turn": 0.3}
         self.current_goal = np.random.choice(list(p.keys()), p=list(p.values()))
 
         o = i['obs/goals/{}'.format(self.current_goal)]
@@ -55,7 +50,6 @@ class MultiGoalWrapped(MultiGoalIntersectionEnv):
         i['arrive_dest/goals/default'] = i['arrive_dest/goals/{}'.format(self.current_goal)]
 
         return o, i
-
 
 
 if __name__ == '__main__':
@@ -101,20 +95,21 @@ if __name__ == '__main__':
             env=None,
             learning_rate=args.lr,
             optimize_memory_usage=True,
-
             learning_starts=10000 if not args.eval else 0,  ###
             batch_size=256,
             tau=0.005,
             gamma=0.99,
             train_freq=1,
             gradient_steps=1,
-            action_noise=NormalActionNoise(mean=np.zeros([2,]), sigma=0.15 * np.ones([2,])),
+            action_noise=NormalActionNoise(mean=np.zeros([
+                2,
+            ]), sigma=0.15 * np.ones([
+                2,
+            ])),
             # target_policy_noise=0,
             # policy_delay=1,
-
             tensorboard_log=log_dir,
             create_eval_env=False,
-
             verbose=2,
             seed=seed,
             device="auto",
@@ -132,17 +127,18 @@ if __name__ == '__main__':
 
     # ===== Setup the training environment =====
 
+
     def make_train_env(render=False):
 
         env_config = dict(
             use_render=render,
             manual_control=False,
             vehicle_config=dict(
-                show_navi_mark = True,
-                show_line_to_navi_mark = True,
-                show_lidar = False,
-                show_side_detector = True,
-                show_lane_line_detector = True,
+                show_navi_mark=True,
+                show_line_to_navi_mark=True,
+                show_lidar=False,
+                show_side_detector=True,
+                show_lane_line_detector=True,
             ),
             debug=render,
             # accident_prob=0.0,
@@ -158,7 +154,6 @@ if __name__ == '__main__':
 
         return create_gym_wrapper(MultiGoalWrapped)(env_config)
 
-
     train_env = make_train_env(render=args.eval)
     train_env = Monitor(env=train_env, filename=log_dir)
     config["algo"]["env"] = train_env
@@ -169,12 +164,7 @@ if __name__ == '__main__':
 
     # ===== Setup the callbacks =====
     callbacks = [
-        CheckpointCallback(
-            name_prefix="rl_model",
-            verbose=1,
-            save_freq=10000,
-            save_path=osp.join(log_dir, "models")
-        )
+        CheckpointCallback(name_prefix="rl_model", verbose=1, save_freq=10000, save_path=osp.join(log_dir, "models"))
     ]
     if use_wandb:
         callbacks.append(

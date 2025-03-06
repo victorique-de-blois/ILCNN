@@ -110,7 +110,6 @@ if __name__ == '__main__':
             adaptive_batch_size=args.adaptive_batch_size,
             bc_loss_weight=args.bc_loss_weight,
             add_bc_loss="True" if args.bc_loss_weight > 0.0 else "False",
-
             replay_buffer_class=HACOReplayBuffer,
             policy_kwargs=dict(net_arch=[256, 256]),
             learning_rate=1e-4,
@@ -124,7 +123,6 @@ if __name__ == '__main__':
             gamma=0.99,
             train_freq=(1, "episode"),
             gradient_steps=-1,
-
             tensorboard_log=trial_dir,
             create_eval_env=False,
             verbose=2,
@@ -155,7 +153,6 @@ if __name__ == '__main__':
     config["algo"]["env"] = train_env
     assert config["algo"]["env"] is not None
 
-
     # ===== Also build the eval env =====
     def _make_eval_env():
         eval_env_config = dict(
@@ -163,9 +160,7 @@ if __name__ == '__main__':
             manual_control=False,  # Allow receiving control signal from external device
             start_seed=1000,
             horizon=1000,
-
             use_discrete=True,
-
             disable_expert=True,
         )
         from pvp.sb3.common.monitor import Monitor
@@ -173,7 +168,6 @@ if __name__ == '__main__':
         eval_env = FakeHumanEnv(config=eval_env_config)
         eval_env = Monitor(env=eval_env, filename=str(trial_dir))
         return eval_env
-
 
     eval_env = SubprocVecEnv([_make_eval_env])
 

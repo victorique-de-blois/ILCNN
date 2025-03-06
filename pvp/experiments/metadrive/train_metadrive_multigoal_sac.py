@@ -44,12 +44,7 @@ class MultiGoalWrapped(MultiGoalIntersectionEnv):
 
         # Sample a goal from the goal set
         if self.config["use_multigoal_intersection"]:
-            p = {
-                "right_turn": 0.3,
-                "left_turn": 0.3,
-                "go_straight": 0.1,
-                "u_turn": 0.3
-            }
+            p = {"right_turn": 0.3, "left_turn": 0.3, "go_straight": 0.1, "u_turn": 0.3}
             self.current_goal = np.random.choice(list(p.keys()), p=list(p.values()))
 
         else:
@@ -63,7 +58,6 @@ class MultiGoalWrapped(MultiGoalIntersectionEnv):
         i['arrive_dest/goals/default'] = i['arrive_dest/goals/{}'.format(self.current_goal)]
 
         return o, i
-
 
 
 # def make_eval_env():
@@ -81,14 +75,12 @@ class MultiGoalWrapped(MultiGoalIntersectionEnv):
 #
 #     return create_gym_wrapper(MultiGoalIntersectionEnv)(env_config)
 
-
 # def make_eval_env(log_dir):
 #     def _init():
 #         env = Monitor(env=HumanInTheLoopEnv(config=baseline_eval_config), filename=os.path.join(log_dir, "eval"))
 #         return env
 #
 #     return _init
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -141,7 +133,6 @@ if __name__ == '__main__':
             action_noise=None,
             tensorboard_log=log_dir,
             create_eval_env=False,
-
             verbose=2,
             seed=seed,
             device="auto",
@@ -159,17 +150,23 @@ if __name__ == '__main__':
 
     # ===== Setup the training environment =====
 
+
     def make_train_env(render=False):
 
         env_config = dict(
             use_render=render,
             manual_control=False,
-            vehicle_config=dict(show_lidar=False, show_navi_mark=True, show_line_to_navi_mark=True, show_line_to_dest=True, show_dest_mark=True),
+            vehicle_config=dict(
+                show_lidar=False,
+                show_navi_mark=True,
+                show_line_to_navi_mark=True,
+                show_line_to_dest=True,
+                show_dest_mark=True
+            ),
             # accident_prob=0.0,
             # traffic_density=0.1,
             decision_repeat=5,
             horizon=500,  # to speed up training
-
             use_multigoal_intersection=False,
             num_scenarios=1000,
             start_seed=1000,
@@ -180,33 +177,30 @@ if __name__ == '__main__':
             # map_config=dict(lane_num=2),
         )
 
-        env_config.update({
+        env_config.update(
+            {
+                "traffic_density": 0.06,
+                "use_multigoal_intersection": False,
+                "num_scenarios": 1000,
+                "start_seed": 100,
+                "use_render": bool(args.ckpt),
 
-            "traffic_density": 0.06,
-            "use_multigoal_intersection": False,
-            "num_scenarios": 1000,
-            "start_seed": 100,
-
-            "use_render": bool(args.ckpt),
-
-            # "num_scenarios": 100,
-            "accident_prob": 0.8,
-            # "traffic_density": 0.05,
-            "crash_vehicle_done": False,
-            "crash_object_done": False,
-            # "cost_to_reward": False,
-
-            "out_of_route_done": True,  # Raise done if out of route.
-            # "num_scenarios": 50,  # There are totally 50 possible maps.
-            # "start_seed": 100,  # We will use the map 100~150 as the default training environment.
-            # "traffic_density": 0.06,
-
-        })
+                # "num_scenarios": 100,
+                "accident_prob": 0.8,
+                # "traffic_density": 0.05,
+                "crash_vehicle_done": False,
+                "crash_object_done": False,
+                # "cost_to_reward": False,
+                "out_of_route_done": True,  # Raise done if out of route.
+                # "num_scenarios": 50,  # There are totally 50 possible maps.
+                # "start_seed": 100,  # We will use the map 100~150 as the default training environment.
+                # "traffic_density": 0.06,
+            }
+        )
 
         wrapped = create_gym_wrapper(MultiGoalWrapped)
 
         return wrapped(env_config)
-
 
     train_env = make_train_env(render=args.eval)
     train_env = Monitor(env=train_env, filename=log_dir)
@@ -217,12 +211,7 @@ if __name__ == '__main__':
 
     # ===== Setup the callbacks =====
     callbacks = [
-        CheckpointCallback(
-            name_prefix="rl_model",
-            verbose=1,
-            save_freq=1_0000,
-            save_path=osp.join(log_dir, "models")
-        )
+        CheckpointCallback(name_prefix="rl_model", verbose=1, save_freq=1_0000, save_path=osp.join(log_dir, "models"))
     ]
     if use_wandb:
         callbacks.append(

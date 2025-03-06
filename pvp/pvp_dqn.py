@@ -15,21 +15,24 @@ import tqdm
 
 
 def sample_and_concat(replay_data_agent, replay_data_human, agent_data_index):
-    replay_data = concat_samples(HACODictReplayBufferSamples(
-        observations=replay_data_agent.observations[agent_data_index],
-        actions_novice=replay_data_agent.actions_novice[agent_data_index],
-        next_observations=replay_data_agent.next_observations[agent_data_index],
-        dones=replay_data_agent.dones[agent_data_index],
-        rewards=replay_data_agent.rewards[agent_data_index],
-        actions_behavior=replay_data_agent.actions_behavior[agent_data_index],
-        interventions=replay_data_agent.interventions[agent_data_index],
-        stop_td=replay_data_agent.stop_td[agent_data_index],
-        intervention_costs=replay_data_agent.intervention_costs[agent_data_index],
-        takeover_log_prob=replay_data_agent.takeover_log_prob[agent_data_index],
-        next_intervention_start=replay_data_agent.next_intervention_start[agent_data_index],
-        # feature_observations=replay_data_agent.feature_observations[agent_data_index] if replay_data_agent.feature_observations is not None else None,
-        # feature_next_observations=replay_data_agent.feature_next_observations[agent_data_index] if replay_data_agent.feature_next_observations is not None else None,
-    ), replay_data_human)
+    replay_data = concat_samples(
+        HACODictReplayBufferSamples(
+            observations=replay_data_agent.observations[agent_data_index],
+            actions_novice=replay_data_agent.actions_novice[agent_data_index],
+            next_observations=replay_data_agent.next_observations[agent_data_index],
+            dones=replay_data_agent.dones[agent_data_index],
+            rewards=replay_data_agent.rewards[agent_data_index],
+            actions_behavior=replay_data_agent.actions_behavior[agent_data_index],
+            interventions=replay_data_agent.interventions[agent_data_index],
+            stop_td=replay_data_agent.stop_td[agent_data_index],
+            intervention_costs=replay_data_agent.intervention_costs[agent_data_index],
+            takeover_log_prob=replay_data_agent.takeover_log_prob[agent_data_index],
+            next_intervention_start=replay_data_agent.next_intervention_start[agent_data_index],
+            # feature_observations=replay_data_agent.feature_observations[agent_data_index] if replay_data_agent.feature_observations is not None else None,
+            # feature_next_observations=replay_data_agent.feature_next_observations[agent_data_index] if replay_data_agent.feature_next_observations is not None else None,
+        ),
+        replay_data_human
+    )
     return replay_data
 
 
@@ -42,7 +45,6 @@ class PVPDQN(DQN):
             self.adaptive_batch_size = kwargs.pop("adaptive_batch_size")
         else:
             self.adaptive_batch_size = False
-
 
         # TODO: bc_loss_weight is not used in the code.
         if "bc_loss_weight" in kwargs:
@@ -86,7 +88,9 @@ class PVPDQN(DQN):
             human_data_size = max(1, human_data_size)
             human_data_size = int(human_data_size)
 
-            replay_data_agent = self.replay_buffer.sample(human_data_size, env=self._vec_normalize_env, return_all=True, discard_rgb=discard_rgb)
+            replay_data_agent = self.replay_buffer.sample(
+                human_data_size, env=self._vec_normalize_env, return_all=True, discard_rgb=discard_rgb
+            )
 
             # TODO: I think it's too complex to extract ResNet feature for now. Maybe we can do it in future.
             # use_pretrained = self.policy_kwargs["features_extractor_kwargs"].get("pretrained", False)
@@ -124,15 +128,35 @@ class PVPDQN(DQN):
                 if self.replay_buffer.pos > 0 and self.human_data_buffer.pos > 0:
                     agent_num_samples = int(min(batch_size // 2, self.replay_buffer.pos))
                     human_num_samples = int(min(batch_size // 2, self.human_data_buffer.pos))
-                    replay_data_agent = self.replay_buffer.sample(agent_num_samples, env=self._vec_normalize_env, discard_rgb=discard_rgb, return_features=return_features)
-                    replay_data_human = self.human_data_buffer.sample(human_num_samples, env=self._vec_normalize_env, discard_rgb=discard_rgb, return_features=return_features)
+                    replay_data_agent = self.replay_buffer.sample(
+                        agent_num_samples,
+                        env=self._vec_normalize_env,
+                        discard_rgb=discard_rgb,
+                        return_features=return_features
+                    )
+                    replay_data_human = self.human_data_buffer.sample(
+                        human_num_samples,
+                        env=self._vec_normalize_env,
+                        discard_rgb=discard_rgb,
+                        return_features=return_features
+                    )
                     replay_data = concat_samples(replay_data_agent, replay_data_human)
                 elif self.human_data_buffer.pos > 0:
                     human_num_samples = int(min(batch_size, self.human_data_buffer.pos))
-                    replay_data = self.human_data_buffer.sample(human_num_samples, env=self._vec_normalize_env, discard_rgb=discard_rgb, return_features=return_features)
+                    replay_data = self.human_data_buffer.sample(
+                        human_num_samples,
+                        env=self._vec_normalize_env,
+                        discard_rgb=discard_rgb,
+                        return_features=return_features
+                    )
                 elif self.replay_buffer.pos > 0:
                     agent_num_samples = int(min(batch_size, self.replay_buffer.pos))
-                    replay_data = self.replay_buffer.sample(agent_num_samples, env=self._vec_normalize_env, discard_rgb=discard_rgb, return_features=return_features)
+                    replay_data = self.replay_buffer.sample(
+                        agent_num_samples,
+                        env=self._vec_normalize_env,
+                        discard_rgb=discard_rgb,
+                        return_features=return_features
+                    )
                 else:
                     raise ValueError("No data in replay buffer")
 
@@ -147,7 +171,7 @@ class PVPDQN(DQN):
             with th.no_grad():
                 # Compute the next Q-values using the target network
                 # next_q_values, _ = self.q_net_target(replay_data.next_observations)
-                next_q_values= self.q_net_target(replay_data.next_observations)
+                next_q_values = self.q_net_target(replay_data.next_observations)
                 # Follow greedy policy: use the one with the highest value
                 next_q_values, _ = next_q_values.max(dim=1)
                 # Avoid potential broadcast issue
@@ -192,7 +216,8 @@ class PVPDQN(DQN):
             loss = loss_td.mean() + pvp_loss.mean()
 
             # BC loss
-            lp = torch.distributions.Categorical(logits=current_q_values).log_prob(replay_data.actions_behavior.flatten())
+            lp = torch.distributions.Categorical(logits=current_q_values
+                                                 ).log_prob(replay_data.actions_behavior.flatten())
             masked_lp = (mask.flatten() * lp.flatten()).sum() / (mask.sum() + 1e-8)
             bc_loss = -lp.mean()
             masked_bc_loss = -masked_lp
@@ -241,24 +266,26 @@ class PVPDQN(DQN):
         # self.human_data_buffer = self.replay_buffer
 
     def _store_transition(
-            self,
-            replay_buffer: ReplayBuffer,
-            buffer_action: np.ndarray,
-            new_obs: Union[np.ndarray, Dict[str, np.ndarray]],
-            reward: np.ndarray,
-            dones: np.ndarray,
-            infos: List[Dict[str, Any]],
-            backbone_features=None
+        self,
+        replay_buffer: ReplayBuffer,
+        buffer_action: np.ndarray,
+        new_obs: Union[np.ndarray, Dict[str, np.ndarray]],
+        reward: np.ndarray,
+        dones: np.ndarray,
+        infos: List[Dict[str, Any]],
+        backbone_features=None
     ) -> None:
         if infos[0]["takeover"] or infos[0]["takeover_start"]:
             replay_buffer = self.human_data_buffer
-        super(PVPDQN, self)._store_transition(replay_buffer, buffer_action, new_obs, reward, dones, infos, backbone_features=backbone_features)
+        super(PVPDQN, self)._store_transition(
+            replay_buffer, buffer_action, new_obs, reward, dones, infos, backbone_features=backbone_features
+        )
 
     def save(
-            self,
-            path: Union[str, pathlib.Path, io.BufferedIOBase],
-            exclude: Optional[Iterable[str]] = None,
-            include: Optional[Iterable[str]] = None,
+        self,
+        path: Union[str, pathlib.Path, io.BufferedIOBase],
+        exclude: Optional[Iterable[str]] = None,
+        include: Optional[Iterable[str]] = None,
     ) -> None:
         """
         Save all the attributes of the object and the model parameters in a zip-file.

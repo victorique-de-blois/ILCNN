@@ -12,7 +12,6 @@ import torch
 import torch.nn as nn
 from pvp.sb3.common.policies import BaseFeaturesExtractor
 
-
 from pvp.experiments.metadrive.egpo.fakehuman_env import FakeHumanEnv
 from pvp.experiments.metadrive.human_in_the_loop_env import HumanInTheLoopEnv
 from pvp.pvp_td3 import PVPTD3
@@ -24,7 +23,6 @@ from pvp.sb3.td3.policies import TD3Policy
 from pvp.utils.shared_control_monitor import SharedControlMonitor
 from pvp.utils.utils import get_time_str
 from pvp.sb3.common.vec_env import DummyVecEnv, VecFrameStack, SubprocVecEnv
-
 
 import math
 from typing import Optional
@@ -48,8 +46,9 @@ class PositionalEncoding(nn.Module):
         div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
-        self.embedding = nn.Embedding.from_pretrained(pe,
-                                                      freeze=False)  # Initialize embedding with positional encodings
+        self.embedding = nn.Embedding.from_pretrained(
+            pe, freeze=False
+        )  # Initialize embedding with positional encodings
 
     def forward(self, x, steps):
         pe = self.embedding(steps)  # Query positional encodings using steps
@@ -60,8 +59,9 @@ class TinyTransformer(nn.Module):
     def __init__(self, input_dim, num_heads, num_layers, hidden_dim, max_len=100):
         super(TinyTransformer, self).__init__()
         self.positional_encoding = PositionalEncoding(input_dim, max_len)
-        encoder_layers = nn.TransformerEncoderLayer(d_model=input_dim, nhead=num_heads, dim_feedforward=hidden_dim,
-                                                    dropout=0.0)
+        encoder_layers = nn.TransformerEncoderLayer(
+            d_model=input_dim, nhead=num_heads, dim_feedforward=hidden_dim, dropout=0.0
+        )
         self.transformer_encoder = nn.TransformerEncoder(encoder_layers, num_layers=num_layers)
         self.class_token = nn.Parameter(torch.randn(1, 1, input_dim))
 
@@ -76,6 +76,7 @@ class TinyTransformer(nn.Module):
         x = self.transformer_encoder(x)
         return x[0, :, :]  # Return the class token output
 
+
 class LowStateNets(nn.Module):
     def __init__(self, history_len=50, input_dim=46, features_dim=256):
         super(LowStateNets, self).__init__()
@@ -86,19 +87,10 @@ class LowStateNets(nn.Module):
         self.conv1 = nn.Conv1d(in_channels=input_dim, out_channels=128, kernel_size=3, stride=1, padding=1)
         self.conv2 = nn.Conv1d(in_channels=128, out_channels=128, kernel_size=3, stride=1, padding=1)
 
-        self.fc_last_frame = nn.Sequential(
-            nn.Linear(input_dim, 128),
-            nn.ReLU(),
-            nn.Linear(128, 128),
-            nn.ReLU()
-        )
+        self.fc_last_frame = nn.Sequential(nn.Linear(input_dim, 128), nn.ReLU(), nn.Linear(128, 128), nn.ReLU())
 
         # Define the final fully connected layers to merge the features
-        self.fc_final = nn.Sequential(
-            nn.Linear(128 + 128, 512),
-            nn.ReLU(),
-            nn.Linear(512, 256)
-        )
+        self.fc_final = nn.Sequential(nn.Linear(128 + 128, 512), nn.ReLU(), nn.Linear(512, 256))
 
     def forward(self, low_level_states, last_frame_data):
         # low_level_states shape: (B, 50, 46)
@@ -131,20 +123,16 @@ class LowStateNetwork(nn.Module):
     """
     LowStateNetwork class for processing low-level states.
     """
-    def __init__(self, input_channels: int = 46,
-                 embedding_channels: int = 32,
-                 history_length: int = 50,
-                 output_size: int = 8):
+    def __init__(
+        self, input_channels: int = 46, embedding_channels: int = 32, history_length: int = 50, output_size: int = 8
+    ):
         super().__init__()
         self.input_channels = input_channels
         self.embedding_channels = embedding_channels
         self.history_length = history_length
         self.output_size = output_size
 
-        self.embedding = nn.Sequential(
-            nn.Linear(self.input_channels, self.embedding_channels),
-            nn.ReLU(inplace=True)
-        )
+        self.embedding = nn.Sequential(nn.Linear(self.input_channels, self.embedding_channels), nn.ReLU(inplace=True))
 
         size_proj = self.history_length
         conv_layers = []
@@ -161,8 +149,7 @@ class LowStateNetwork(nn.Module):
         self.conv = conv_layers
         self.conv = nn.Sequential(*self.conv)
         self.projection = nn.Sequential(
-            nn.Linear(size_proj * self.embedding_channels + input_channels, self.output_size),
-            nn.ReLU(inplace=True),
+            nn.Linear(size_proj * self.embedding_channels + input_channels, self.output_size), nn.ReLU(inplace=True),
             nn.Linear(self.output_size, self.output_size)
         )
 
@@ -186,8 +173,17 @@ class LowStateNetwork(nn.Module):
 
 
 class BBoxFeatureExtractor(BaseFeaturesExtractor):
-    def __init__(self, observation_space, features_dim, transformer_hidden_dim=1024, horizon=10,
-                 num_transformer_layers=2, num_transformer_heads=2, net_arch=(256,), use_continuous_action_space=False):
+    def __init__(
+        self,
+        observation_space,
+        features_dim,
+        transformer_hidden_dim=1024,
+        horizon=10,
+        num_transformer_layers=2,
+        num_transformer_heads=2,
+        net_arch=(256, ),
+        use_continuous_action_space=False
+    ):
         super().__init__(observation_space, features_dim)
 
         obs_flat_dim = observation_space["obs"].shape[1:]
@@ -198,7 +194,8 @@ class BBoxFeatureExtractor(BaseFeaturesExtractor):
             act_flat_dim = observation_space["action"].shape[1:]
             act_flat_dim = np.prod(act_flat_dim)
             self.action_embedding = nn.Sequential(
-                *create_mlp(input_dim=act_flat_dim, output_dim=features_dim, net_arch=net_arch))
+                *create_mlp(input_dim=act_flat_dim, output_dim=features_dim, net_arch=net_arch)
+            )
         else:
             self.action_embedding = nn.Embedding(observation_space["action"][0].n, features_dim)
 
@@ -232,11 +229,19 @@ class BBoxFeatureExtractor(BaseFeaturesExtractor):
         output_token = self.transformer(features, steps)  # Apply the transformer
         return output_token
 
+
 class GRUFeatureExtractor(BaseFeaturesExtractor):
     def __init__(
-            self, observation_space, features_dim, gru_hidden_dim=128, horizon=10, net_arch=(256,),
-            use_continuous_action_space=False,
-            transformer_hidden_dim=None, num_transformer_layers=None, num_transformer_heads=None
+        self,
+        observation_space,
+        features_dim,
+        gru_hidden_dim=128,
+        horizon=10,
+        net_arch=(256, ),
+        use_continuous_action_space=False,
+        transformer_hidden_dim=None,
+        num_transformer_layers=None,
+        num_transformer_heads=None
     ):
         super().__init__(observation_space, features_dim)
 
@@ -244,15 +249,20 @@ class GRUFeatureExtractor(BaseFeaturesExtractor):
         obs_flat_dim = np.prod(obs_flat_dim)
         obs_flat_dim_with_action = obs_flat_dim + 2
 
-        self.input_fc = nn.Sequential(*create_mlp(input_dim=obs_flat_dim_with_action, output_dim=features_dim, net_arch=[256, 256,]))
-        self.gru = nn.GRU(
-            input_size=256,
-            hidden_size=features_dim,
-            num_layers=2,
-            batch_first=True
+        self.input_fc = nn.Sequential(
+            *create_mlp(input_dim=obs_flat_dim_with_action, output_dim=features_dim, net_arch=[
+                256,
+                256,
+            ])
         )
+        self.gru = nn.GRU(input_size=256, hidden_size=features_dim, num_layers=2, batch_first=True)
         # self.output_fc = nn.Linear(gru_hidden_dim, features_dim)
-        self.forward_fc = nn.Sequential(*create_mlp(input_dim=obs_flat_dim_with_action, output_dim=features_dim, net_arch=[256, 256,]))
+        self.forward_fc = nn.Sequential(
+            *create_mlp(input_dim=obs_flat_dim_with_action, output_dim=features_dim, net_arch=[
+                256,
+                256,
+            ])
+        )
 
     def forward(self, observations):
 
@@ -279,6 +289,7 @@ class GRUFeatureExtractor(BaseFeaturesExtractor):
         output = forward_output
 
         return output
+
 
 class PVPCritic(ContinuousCritic):
     def __init__(self, *args, **kwargs):
@@ -356,9 +367,7 @@ def space_stack(space: gym.Space, repeat: int):
     elif isinstance(space, (gymnasium.spaces.Discrete, gym.spaces.Discrete)):
         return gym.spaces.MultiDiscrete([space.n] * repeat)
     elif isinstance(space, (gymnasium.spaces.Dict, gym.spaces.Dict)):
-        return gym.spaces.Dict(
-            {k: space_stack(v, repeat) for k, v in space.spaces.items()}
-        )
+        return gym.spaces.Dict({k: space_stack(v, repeat) for k, v in space.spaces.items()})
     else:
         raise ValueError(f"Space {space} is not supported by Gym wrappers.")
 
@@ -370,7 +379,6 @@ class HistoryWrapper(gym.Wrapper):
     A `timestep_pad_mask` key is added to the final observation dictionary that denotes which timesteps
     are padding.
     """
-
     def __init__(self, env: gym.Env, horizon: int, include_first_frame=False):
         super().__init__(env)
         self.horizon = horizon
@@ -388,7 +396,7 @@ class HistoryWrapper(gym.Wrapper):
         obs_dict = {
             "obs": space_stack(self.env.observation_space, obs_horizon),
             "action": space_stack(self.env.action_space, obs_horizon),
-            "timestep_pad_mask": gym.spaces.Box(shape=(obs_horizon,), low=0, high=1, dtype=np.float32),
+            "timestep_pad_mask": gym.spaces.Box(shape=(obs_horizon, ), low=0, high=1, dtype=np.float32),
         }
         # if self.unwrapped.config.use_low_state_obs:
         #     # TODO: The shape is hardcoded here.
@@ -547,12 +555,10 @@ if __name__ == '__main__':
                 discard_reward=True,  # We run in reward-free manner!
             ),
 
-
             # policy=TD3Policy,
             # policy_kwargs=dict(net_arch=[256, 256]),
-
             policy=PVPContinuousPolicy,
-            policy_kwargs = dict(
+            policy_kwargs=dict(
                 features_extractor_class=GRUFeatureExtractor,
                 features_extractor_kwargs=dict(
                     features_dim=256,
@@ -563,11 +569,8 @@ if __name__ == '__main__':
                 ),
                 net_arch=[],
                 one_hot_discrete=False,
-
                 share_features_extractor=False,
             ),
-
-
             env=None,
             learning_rate=1e-4,
             q_value_bound=1,
@@ -612,7 +615,6 @@ if __name__ == '__main__':
     config["algo"]["env"] = train_env
     assert config["algo"]["env"] is not None
 
-
     # ===== Also build the eval env =====
     def _make_eval_env():
         eval_env_config = dict(
@@ -629,7 +631,6 @@ if __name__ == '__main__':
 
         eval_env = Monitor(env=eval_env, filename=str(trial_dir))
         return eval_env
-
 
     eval_env = SubprocVecEnv([_make_eval_env])
 
@@ -658,7 +659,6 @@ if __name__ == '__main__':
         from pvp.sb3.common.save_util import load_from_zip_file
         data, params, pytorch_variables = load_from_zip_file(ckpt, device=model.device, print_system_info=False)
         model.set_parameters(params, exact_match=True, device=model.device)
-
 
     # ===== Launch training =====
     model.learn(
