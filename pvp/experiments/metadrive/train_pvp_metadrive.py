@@ -24,6 +24,12 @@ if __name__ == '__main__':
     parser.add_argument("--wandb_team", type=str, default="", help="The team name for wandb.")
 
     parser.add_argument("--toy_env", action="store_true", help="Whether to use a toy environment.")
+    parser.add_argument("--bc_loss_weight", type=float, default=0.0)
+    parser.add_argument("--with_human_proxy_value_loss", default="True", type=str)
+    parser.add_argument("--with_agent_proxy_value_loss", default="True", type=str)
+    parser.add_argument("--adaptive_batch_size", default="True", type=str)
+    parser.add_argument("--only_bc_loss", default="False", type=str)
+    parser.add_argument("--ckpt", default="", type=str)
     parser.add_argument(
         "--device",
         required=True,
@@ -64,7 +70,14 @@ if __name__ == '__main__':
 
         # Algorithm config
         algo=dict(
+            adaptive_batch_size=args.adaptive_batch_size,
+            bc_loss_weight=args.bc_loss_weight,
+            only_bc_loss=args.only_bc_loss,
+            with_human_proxy_value_loss=args.with_human_proxy_value_loss,
+            with_agent_proxy_value_loss=args.with_agent_proxy_value_loss,
+            add_bc_loss="True" if args.bc_loss_weight > 0.0 else "False",
             use_balance_sample=True,
+            agent_data_ratio=1.0,
             policy=TD3Policy,
             replay_buffer_class=HACOReplayBuffer,
             replay_buffer_kwargs=dict(

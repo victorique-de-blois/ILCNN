@@ -83,6 +83,7 @@ class FakeHumanEnv(HumanInTheLoopEnv):
     last_takeover = None
     last_obs = None
     expert = None
+    drawn_points = []
 
     def __init__(self, config):
         super(FakeHumanEnv, self).__init__(config)
@@ -117,6 +118,7 @@ class FakeHumanEnv(HumanInTheLoopEnv):
                 "manual_control": False,
                 "use_render": False,
                 "expert_deterministic": False,
+                "future_steps": 20,
             }
         )
         return config
@@ -139,6 +141,21 @@ class FakeHumanEnv(HumanInTheLoopEnv):
 
         self.agent_action = copy.copy(actions)
         self.last_takeover = self.takeover
+        
+        if self.total_steps % 10 == 0:
+            predicted_traj, info = self.predict_agent_future_trajectory(self.last_obs)
+            points, colors = [], []
+            failure = info["failure"]
+            drawer = self.drawer 
+            for npp in self.drawn_points:
+                npp.detachNode()
+                self.drawer._dying_points.append(npp)
+            self.drawn_points = []
+            for j in range(len(predicted_traj)):
+                points.append((predicted_traj[j]["next_pos"][0], predicted_traj[j]["next_pos"][1], 0.5)) # define line 1 for test
+                color=(failure,1 - failure,0)
+                colors.append(np.clip(np.array([*color,1]), 0., 1.0))
+            self.drawn_points = self.drawn_points + self.draw_points(points, colors)
 
         # ===== Get expert action and determine whether to take over! =====
 
@@ -231,13 +248,56 @@ class FakeHumanEnv(HumanInTheLoopEnv):
 
     def _get_reset_return(self, reset_info):
         o, info = super(HumanInTheLoopEnv, self)._get_reset_return(reset_info)
+        if hasattr(self,"drawer"):
+            drawer = self.drawer # create a point drawer
+        else:
+            self.drawer = self.engine.make_point_drawer(scale=3)
         self.last_obs = o
         self.last_takeover = False
         return o, info
 
 
+def get_expert2():
+    from pvp.sb3.common.save_util import load_from_zip_file
+    from pvp.sb3.ppo import PPO
+    from pvp.sb3.ppo.policies import ActorCriticPolicy
+
+    train_env = HumanInTheLoopEnv(config={'manual_control': False, "use_render": False})
+
+    # Initialize agent
+    algo_config = dict(
+        policy=ActorCriticPolicy,
+        n_steps=1024,  # n_steps * n_envs = total_batch_size
+        n_epochs=20,
+        learning_rate=5e-5,
+        batch_size=256,
+        clip_range=0.1,
+        vf_coef=0.5,
+        ent_coef=0.0,
+        max_grad_norm=10.0,
+        # tensorboard_log=trial_dir,
+        create_eval_env=False,
+        verbose=2,
+        # seed=seed,
+        device="auto",
+        env=train_env
+    )
+    model = PPO(**algo_config)
+
+    ckpt = FOLDER_PATH / "metadrive_pvp_20m_steps"
+
+    print(f"Loading checkpoint from {ckpt}!")
+    data, params, pytorch_variables = load_from_zip_file(ckpt, device=model.device, print_system_info=False)
+    model.set_parameters(params, exact_match=True, device=model.device)
+    print(f"Model is loaded from {ckpt}!")
+
+    train_env.close()
+
+    return model
+
 if __name__ == "__main__":
-    env = FakeHumanEnv(dict(free_level=0.95, use_render=False))
+    env = FakeHumanEnv(dict(free_level=-10, use_render=True, num_scenarios=1, traffic_density=0, map='COT'))
+    env.model = get_expert2()
     env.reset()
     while True:
         _, _, done, info = env.step([0, 1])
