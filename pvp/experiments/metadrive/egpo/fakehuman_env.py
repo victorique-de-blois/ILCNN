@@ -118,7 +118,6 @@ class FakeHumanEnv(HumanInTheLoopEnv):
                 "manual_control": False,
                 "use_render": False,
                 "expert_deterministic": False,
-                "future_steps": 20,
             }
         )
         return config
@@ -296,7 +295,7 @@ def get_expert2():
     return model
 
 if __name__ == "__main__":
-    env = FakeHumanEnv(dict(free_level=-10, use_render=True, num_scenarios=1, traffic_density=0, map='COT'))
+    env = FakeHumanEnv(dict(free_level=-10, use_render=True, num_scenarios=1, traffic_density=0))
     env.model = get_expert2()
     env.reset()
     while True:
