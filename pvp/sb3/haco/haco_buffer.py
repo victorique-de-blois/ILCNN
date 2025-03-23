@@ -159,6 +159,33 @@ class HACOReplayBuffer(ReplayBuffer):
                     f"replay buffer {total_memory_usage:.2f}GB > {mem_available:.2f}GB"
                 )
 
+    def add_preference_data(self, obs: Dict[str, np.ndarray], pos_action: np.ndarray, neg_action: np.ndarray):
+        if self._fake_dict_obs:
+            obs = {"default": obs}
+
+        # Copy to avoid modification by reference
+        for key in self.observations.keys():
+            # Reshape needed when using multiple envs with discrete observations
+            # as numpy cannot broadcast (n_discrete,) to (n_discrete, 1)
+            if isinstance(self.observation_space.spaces[key], (spaces.Discrete, new_spaces.Discrete)):
+                obs[key] = obs[key].reshape((self.n_envs, ) + self.obs_shape[key])
+            self.observations[key][self.pos] = np.array(obs[key]).copy()
+        
+        behavior_actions = pos_action.copy()
+        action = neg_action.copy()
+        
+        if isinstance(self.action_space, (spaces.Discrete, new_spaces.Discrete)):
+            action = action.reshape((self.n_envs, self.action_dim))
+            behavior_actions = behavior_actions.reshape((self.n_envs, self.action_dim))
+            
+        self.actions_novice[self.pos] = np.array(action).copy().reshape(self.actions_novice[self.pos].shape)
+        self.actions_behavior[self.pos] = behavior_actions.reshape(self.actions_behavior[self.pos].shape)
+
+        self.pos += 1
+        if self.pos == self.buffer_size:
+            self.full = True
+            self.pos = 0
+        
     def add(
         self,
         obs: Dict[str, np.ndarray],

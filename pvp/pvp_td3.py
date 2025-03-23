@@ -20,7 +20,6 @@ from pvp.sb3.td3.td3 import TD3
 
 logger = logging.getLogger(__name__)
 
-
 class PVPTD3(TD3):
     def __init__(self, use_balance_sample=True, q_value_bound=1., *args, **kwargs):
         """Please find the hyperparameters from original TD3"""
@@ -42,7 +41,7 @@ class PVPTD3(TD3):
                 assert v in ["True", "False"]
                 v = v == "True"
                 self.extra_config[k] = v
-        for k in ["agent_data_ratio", "bc_loss_weight"]:
+        for k in ["agent_data_ratio", "bc_loss_weight", "dpo_loss_weight", "alpha", "bias"]:
             if k in kwargs:
                 self.extra_config[k] = kwargs.pop(k)
 
@@ -167,7 +166,7 @@ class PVPTD3(TD3):
             self.critic.optimizer.zero_grad()
             critic_loss.backward()
             self.critic.optimizer.step()
-            stat_recorder["train/critic_loss"] = critic_loss.item()
+            stat_recorder["critic_loss"] = critic_loss.item()
 
             # Delayed policy updates
             if self._n_updates % self.policy_delay == 0:
@@ -193,9 +192,9 @@ class PVPTD3(TD3):
                 self.actor.optimizer.zero_grad()
                 actor_loss.backward()
                 self.actor.optimizer.step()
-                stat_recorder["train/actor_loss"] = actor_loss.item()
-                stat_recorder["train/masked_bc_loss"] = masked_bc_loss.item()
-                stat_recorder["train/bc_loss"] = bc_loss.mean().item()
+                stat_recorder["actor_loss"] = actor_loss.item()
+                stat_recorder["masked_bc_loss"] = masked_bc_loss.item()
+                stat_recorder["bc_loss"] = bc_loss.mean().item()
 
                 polyak_update(self.critic.parameters(), self.critic_target.parameters(), self.tau)
                 polyak_update(self.actor.parameters(), self.actor_target.parameters(), self.tau)
@@ -327,7 +326,97 @@ class PVPTD3(TD3):
 
         return self
 
+def biased_bce_with_logits(adv1, adv2, y, bias=1.0):
+    # Apply the log-sum-exp trick.
+    # y = 1 if we prefer x2 to x1
+    # We need to implement the numerical stability trick.
 
+    logit21 = adv2 - bias * adv1
+    logit12 = adv1 - bias * adv2
+    max21 = torch.clamp(-logit21, min=0, max=None)
+    max12 = torch.clamp(-logit12, min=0, max=None)
+    nlp21 = torch.log(torch.exp(-max21) + torch.exp(-logit21 - max21)) + max21
+    nlp12 = torch.log(torch.exp(-max12) + torch.exp(-logit12 - max12)) + max12
+    loss = y * nlp21 + (1 - y) * nlp12
+    loss = loss.mean()
+
+    # Now compute the accuracy
+    with torch.no_grad():
+        accuracy = ((adv2 > adv1) == torch.round(y)).float().mean()
+
+    return loss, accuracy
+
+class COMB(PVPTD3):
+    def __init__(self, *args, **kwargs):
+        super(COMB, self).__init__(*args, **kwargs)
+        self.preference_buffer = HACOReplayBuffer(
+            self.buffer_size,
+            self.observation_space,
+            self.action_space,
+            self.device,
+            n_envs=self.n_envs,
+            optimize_memory_usage=self.optimize_memory_usage,
+            **self.replay_buffer_kwargs
+        )
+    def _excluded_save_params(self) -> List[str]:
+        return super()._excluded_save_params() + ["preference_buffer", "human_data_buffer"]
+    
+    def train(self, gradient_steps: int, batch_size: int = 100) -> None:
+        # Switch to train mode (this affects batch norm / dropout)
+        self.policy.set_training_mode(True)
+
+        # Update learning rate according to lr schedule
+        self._update_learning_rate([self.actor.optimizer])
+
+        stat_recorder = defaultdict(list)
+
+        for step in range(gradient_steps):
+            self._n_updates += 1
+            # Sample replay buffer
+            if self.human_data_buffer.pos == 0:
+                break
+            replay_data = self.human_data_buffer.sample(int(batch_size), env=self._vec_normalize_env)
+            preference_data = self.preference_buffer.sample(int(batch_size), env=self._vec_normalize_env)
+            
+            new_action = self.actor(replay_data.observations)
+            bc_loss = F.mse_loss(replay_data.actions_behavior, new_action, reduction="none").mean()
+            
+            pos_obs, pos_action = preference_data.observations, preference_data.actions_behavior
+            neg_obs, neg_action = preference_data.observations, preference_data.actions_novice
+            
+            def get_log_prob(obs, target_action):
+                mean = self.actor(obs)
+                log_prob = -((mean - target_action) ** 2).sum(dim = -1)
+                return log_prob
+            
+            alpha, bias = self.extra_config["alpha"], self.extra_config["bias"]
+            log_prob_pos = get_log_prob(pos_obs, pos_action)
+            log_prob_neg = get_log_prob(neg_obs, neg_action)
+            adv_pos, adv_neg = alpha * log_prob_pos, alpha * log_prob_neg
+            label = torch.ones_like(adv_pos)
+            dpo_loss, accuracy = biased_bce_with_logits(adv_neg, adv_pos, label.float(), bias=bias)
+            
+            bc_loss_weight, dpo_loss_weight = self.extra_config["bc_loss_weight"], self.extra_config["dpo_loss_weight"]
+            loss = bc_loss_weight * bc_loss + dpo_loss_weight * dpo_loss
+            
+            self.actor.optimizer.zero_grad()
+            loss.backward()
+            self.actor.optimizer.step()
+            
+            stat_recorder["bc_loss"].append(bc_loss.item() if bc_loss is not None else float('nan'))
+            stat_recorder["cpl_loss"].append(dpo_loss.item() if dpo_loss is not None else float('nan'))
+            stat_recorder["cpl_accuracy"].append(accuracy.item() if accuracy is not None else float('nan'))
+            stat_recorder["loss"].append(loss.item() if loss is not None else float('nan'))
+
+        self._n_updates += gradient_steps
+        self.logger.record("train/predicted_steps", self.preference_buffer.pos)
+        self.logger.record("train/human_involved_steps", self.human_data_buffer.pos)
+
+        self.logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
+        for key, values in stat_recorder.items():
+            self.logger.record("train/{}".format(key), np.mean(values))
+    
+    
 class PVPES(PVPTD3):
     actor_update_count = 0
 

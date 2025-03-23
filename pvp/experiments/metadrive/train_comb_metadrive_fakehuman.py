@@ -4,7 +4,7 @@ import uuid
 from pathlib import Path
 
 from pvp.experiments.metadrive.egpo.fakehuman_env import FakeHumanEnv
-from pvp.pvp_td3 import PVPTD3
+from pvp.pvp_td3 import COMB
 from pvp.sb3.common.callbacks import CallbackList, CheckpointCallback
 from pvp.sb3.common.monitor import Monitor
 from pvp.sb3.common.vec_env import SubprocVecEnv
@@ -22,16 +22,16 @@ if __name__ == '__main__':
     )
     parser.add_argument("--batch_size", default=1024, type=int)
     parser.add_argument("--learning_starts", default=10, type=int)
-    parser.add_argument("--save_freq", default=500, type=int)
+    parser.add_argument("--save_freq", default=2000, type=int)
     parser.add_argument("--seed", default=0, type=int, help="The random seed.")
     parser.add_argument("--wandb", action="store_true", help="Set to True to upload stats to wandb.")
     parser.add_argument("--wandb_project", type=str, default="fakepos", help="The project name for wandb.")
     parser.add_argument("--wandb_team", type=str, default="victorique", help="The team name for wandb.")
     parser.add_argument("--log_dir", type=str, default=FOLDER_PATH.parent.parent, help="Folder to store the logs.")
-    parser.add_argument("--bc_loss_weight", type=float, default=0.0)
+    parser.add_argument("--bc_loss_weight", type=float, default=1.0)
     parser.add_argument("--with_human_proxy_value_loss", default="True", type=str)
     parser.add_argument("--with_agent_proxy_value_loss", default="True", type=str)
-    parser.add_argument("--adaptive_batch_size", default="True", type=str)
+    parser.add_argument("--adaptive_batch_size", default="False", type=str)
     parser.add_argument("--only_bc_loss", default="False", type=str)
     parser.add_argument("--ckpt", default="", type=str)
     parser.add_argument("--policy_delay", default=1, type=int)
@@ -39,7 +39,11 @@ if __name__ == '__main__':
     parser.add_argument("--update_future_freq", default=10, type=int)
     parser.add_argument("--future_steps_preference", default=3, type=int)
     parser.add_argument("--expert_noise", default=0.4, type=float)
+    parser.add_argument("--simple_batch", default="True", type=str)
     parser.add_argument("--toy_env", action="store_true", help="Whether to use a toy environment.")
+    parser.add_argument("--dpo_loss_weight", default=1.0, type=float)
+    parser.add_argument("--alpha", default=0.1, type=float)
+    parser.add_argument("--bias", default=0.5, type=float)
     
     args = parser.parse_args()
 
@@ -47,7 +51,7 @@ if __name__ == '__main__':
     #experiment_batch_name = "{}_freelevel{}".format(args.exp_name, args.free_level)
     experiment_batch_name = "{}_bcw={}".format("PVP", args.bc_loss_weight)
     if args.only_bc_loss=="True":
-        experiment_batch_name = "HGDAgger"
+        experiment_batch_name = "BCLossOnlyS"
     seed = args.seed
     #trial_name = "{}_{}_{}".format(experiment_batch_name, get_time_str(), uuid.uuid4().hex[:8])
     trial_name = "{}_{}".format(experiment_batch_name, uuid.uuid4().hex[:8])
@@ -96,6 +100,10 @@ if __name__ == '__main__':
             with_human_proxy_value_loss=args.with_human_proxy_value_loss,
             with_agent_proxy_value_loss=args.with_agent_proxy_value_loss,
             policy_delay=args.policy_delay,
+            simple_batch=args.simple_batch,
+            dpo_loss_weight = args.dpo_loss_weight,
+            alpha = args.alpha,
+            bias = args.bias,
             add_bc_loss="True" if args.bc_loss_weight > 0.0 else "False",
             use_balance_sample=True,
             agent_data_ratio=1.0,
@@ -184,7 +192,7 @@ if __name__ == '__main__':
     callbacks = CallbackList(callbacks)
 
     # ===== Setup the training algorithm =====
-    model = PVPTD3(**config["algo"])
+    model = COMB(**config["algo"])
     if args.ckpt:
         ckpt = Path(args.ckpt)
         print(f"Loading checkpoint from {ckpt}!")

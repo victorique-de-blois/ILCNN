@@ -133,20 +133,13 @@ class FakeHumanEnv(HumanInTheLoopEnv):
         predicted_traj, info = self.predict_agent_future_trajectory(obs, future_steps_predict)
         return predicted_traj, info["failure"]
     
-    # def store_preference_pairs(self, obs, future_steps_preference, agent_action, expert_action):
-    #     predicted_traj, info = self.predict_agent_future_trajectory(obs, future_steps_preference, action_behavior=agent_action)
-        
-        
-    # def add(
-    #     self,
-    #     obs: Dict[str, np.ndarray],
-    #     next_obs: Dict[str, np.ndarray],
-    #     action: np.ndarray,
-    #     reward: np.ndarray,
-    #     done: np.ndarray,
-    #     infos: List[Dict[str, Any]],
-    # ) 
-        
+    def store_preference_pairs(self, obs, future_steps_preference, agent_action, expert_action):
+        predicted_traj, info = self.predict_agent_future_trajectory(obs, future_steps_preference, action_behavior=agent_action)
+        if hasattr(self, "model") and hasattr(self.model, "preference_buffer"):
+            for step in range(len(predicted_traj)):
+                self.model.preference_buffer.add_preference_data(predicted_traj[step]["obs"], expert_action, agent_action)
+        return predicted_traj
+
     def step(self, actions):
         """Compared to the original one, we call expert_action_prob here and implement a takeover function."""
         actions = np.asarray(actions).astype(np.float32)
@@ -210,8 +203,9 @@ class FakeHumanEnv(HumanInTheLoopEnv):
                     expert_action = self.discrete_to_continuous(expert_action)
 
                 actions = expert_action
-                # self.store_preference_pairs(self.last_obs, future_steps_preference, self.agent_action, expert_action)
+                self.store_preference_pairs(self.last_obs, future_steps_preference, self.agent_action, expert_action)
                 #TODO: render the preference pairs
+                #current implementation: bamboo
             # print(f"Action probability: {action_prob:.3f}, agent action: {actions}, expert action: {expert_action}, takeover: {self.takeover}")
 
         o, r, d, i = super(HumanInTheLoopEnv, self).step(actions)
