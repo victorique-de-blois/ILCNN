@@ -83,7 +83,6 @@ class FakeHumanEnv(HumanInTheLoopEnv):
     last_takeover = None
     last_obs = None
     expert = None
-    drawn_points = []
 
     def __init__(self, config):
         super(FakeHumanEnv, self).__init__(config)
@@ -114,7 +113,6 @@ class FakeHumanEnv(HumanInTheLoopEnv):
                 "use_discrete": False,
                 "disable_expert": False,
                 "agent_policy": EnvInputPolicy,
-                "free_level": 0.95,
                 "manual_control": False,
                 "use_render": False,
                 "expert_deterministic": False,
@@ -131,6 +129,10 @@ class FakeHumanEnv(HumanInTheLoopEnv):
         continuous_action = self._actions[a.astype(int)]
         return continuous_action
 
+    def decide_takeover(self, obs, future_steps_predict):
+        predicted_traj, info = self.predict_agent_future_trajectory(obs, future_steps_predict)
+        return predicted_traj, info["failure"]
+        
     def step(self, actions):
         """Compared to the original one, we call expert_action_prob here and implement a takeover function."""
         actions = np.asarray(actions).astype(np.float32)
@@ -141,20 +143,10 @@ class FakeHumanEnv(HumanInTheLoopEnv):
         self.agent_action = copy.copy(actions)
         self.last_takeover = self.takeover
         
-        if self.total_steps % 10 == 0:
-            predicted_traj, info = self.predict_agent_future_trajectory(self.last_obs)
-            points, colors = [], []
-            failure = info["failure"]
-            drawer = self.drawer 
-            for npp in self.drawn_points:
-                npp.detachNode()
-                self.drawer._dying_points.append(npp)
-            self.drawn_points = []
-            for j in range(len(predicted_traj)):
-                points.append((predicted_traj[j]["next_pos"][0], predicted_traj[j]["next_pos"][1], 0.5)) # define line 1 for test
-                color=(failure,1 - failure,0)
-                colors.append(np.clip(np.array([*color,1]), 0., 1.0))
-            self.drawn_points = self.drawn_points + self.draw_points(points, colors)
+        future_steps_predict = self.config["future_steps_predict"]
+        update_future_freq = self.config["update_future_freq"]
+        future_steps_preference = self.config["future_steps_preference"]
+        expert_noise_bound = self.config["expert_noise"]
 
         # ===== Get expert action and determine whether to take over! =====
 
@@ -178,19 +170,34 @@ class FakeHumanEnv(HumanInTheLoopEnv):
             assert expert_action.shape[0] == action_prob.shape[0] == 1
             action_prob = action_prob[0]
             expert_action = expert_action[0]
-            if action_prob < 1 - self.config['free_level']:
+            
+            if self.total_steps % update_future_freq == 0:
+                predicted_traj, self.takeover = self.decide_takeover(self.last_obs, future_steps_predict)
+                if self.config["use_render"]:
+                    points, colors = [], []
+                    failure = self.takeover
+                    drawer = self.drawer 
+                    for npp in self.drawn_points:
+                        npp.detachNode()
+                        self.drawer._dying_points.append(npp)
+                    self.drawn_points = []
+                    for j in range(len(predicted_traj)):
+                        points.append((predicted_traj[j]["next_pos"][0], predicted_traj[j]["next_pos"][1], 0.5)) # define line 1 for test
+                        color=(failure,1 - failure,0)
+                        colors.append(np.clip(np.array([*color,1]), 0., 1.0))
+                    self.drawn_points = self.drawn_points + self.draw_points(points, colors)
+            
+            if self.takeover:
 
-                # print(f"Action probability: {action_prob}, agent action: {actions}, expert action: {expert_action},")
-
+                enoise = np.random.randn(2) * expert_noise_bound
+                expert_action = np.clip(enoise + expert_action, self.action_space.low, self.action_space.high)
                 if self.config["use_discrete"]:
                     expert_action = self.continuous_to_discrete(expert_action)
                     expert_action = self.discrete_to_continuous(expert_action)
 
                 actions = expert_action
-
-                self.takeover = True
-            else:
-                self.takeover = False
+                #TODO: self.store_preference_pairs(future_steps_preference, self.agent_action, expert_action)
+                #TODO: render the preference pairs
             # print(f"Action probability: {action_prob:.3f}, agent action: {actions}, expert action: {expert_action}, takeover: {self.takeover}")
 
         o, r, d, i = super(HumanInTheLoopEnv, self).step(actions)
@@ -247,61 +254,25 @@ class FakeHumanEnv(HumanInTheLoopEnv):
 
     def _get_reset_return(self, reset_info):
         o, info = super(HumanInTheLoopEnv, self)._get_reset_return(reset_info)
-        if hasattr(self,"drawer"):
-            drawer = self.drawer # create a point drawer
-        else:
-            self.drawer = self.engine.make_point_drawer(scale=3)
         self.last_obs = o
         self.last_takeover = False
+        self.takeover = False
         return o, info
 
 
-def get_expert2():
-    from pvp.sb3.common.save_util import load_from_zip_file
-    from pvp.sb3.ppo import PPO
-    from pvp.sb3.ppo.policies import ActorCriticPolicy
-
-    train_env = HumanInTheLoopEnv(config={'manual_control': False, "use_render": False})
-
-    # Initialize agent
-    algo_config = dict(
-        policy=ActorCriticPolicy,
-        n_steps=1024,  # n_steps * n_envs = total_batch_size
-        n_epochs=20,
-        learning_rate=5e-5,
-        batch_size=256,
-        clip_range=0.1,
-        vf_coef=0.5,
-        ent_coef=0.0,
-        max_grad_norm=10.0,
-        # tensorboard_log=trial_dir,
-        create_eval_env=False,
-        verbose=2,
-        # seed=seed,
-        device="auto",
-        env=train_env
-    )
-    model = PPO(**algo_config)
-
-    ckpt = FOLDER_PATH / "metadrive_pvp_20m_steps"
-
-    print(f"Loading checkpoint from {ckpt}!")
-    data, params, pytorch_variables = load_from_zip_file(ckpt, device=model.device, print_system_info=False)
-    model.set_parameters(params, exact_match=True, device=model.device)
-    print(f"Model is loaded from {ckpt}!")
-
-    train_env.close()
-
-    return model
-
 if __name__ == "__main__":
-    env = FakeHumanEnv(dict(free_level=-10, use_render=True, num_scenarios=1, traffic_density=0))
-    env.model = get_expert2()
+    env = FakeHumanEnv(dict(use_render=True, num_scenarios=1, traffic_density=0))
     env.reset()
+    ss = 0
     while True:
-        _, _, done, info = env.step([0, 1])
+        if ss < 10:
+            _, _, done, info = env.step([0, 1])
+        else:
+            _, _, done, info = env.step([0, 0.1])
+        ss += 1
         # done = tm or tc
         # env.render(mode="topdown")
         if done:
             print(info)
             env.reset()
+            ss = 0

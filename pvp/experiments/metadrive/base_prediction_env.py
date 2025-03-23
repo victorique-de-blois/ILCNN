@@ -16,7 +16,10 @@ class BasePredictionEnv(SafeMetaDriveEnv):
         config = super(BasePredictionEnv, self).default_config()
         config.update(
             {
-                "future_steps": 20,
+                "future_steps_predict": 20,
+                "update_future_freq": 10,
+                "future_steps_preference": 3,
+                "expert_noise": 0,
             },
             allow_add_new_key=True
         )
@@ -185,7 +188,7 @@ class BasePredictionEnv(SafeMetaDriveEnv):
             vehicle.navigation.navi_arrow_dir = state.get("navi_arrow_dir", None)
 
     
-    def predict_agent_future_trajectory(self, current_obs, action_behavior = None, return_all_states = False):
+    def predict_agent_future_trajectory(self, current_obs, n_steps, action_behavior = None, return_all_states = False):
         info = dict()
         saved_state = self.get_state()
         
@@ -195,7 +198,7 @@ class BasePredictionEnv(SafeMetaDriveEnv):
         total_reward = 0
         failure = False
         
-        for step in range(self.config["future_steps"]):
+        for step in range(n_steps):
             old_pos = copy.deepcopy(self.vehicle.position)
             action = action_behavior
             if action_behavior is None:
@@ -326,3 +329,15 @@ class BasePredictionEnv(SafeMetaDriveEnv):
             drawer._existing_points.append(np)
             new_points.append(np)
         return new_points
+
+    def _get_reset_return(self, reset_info):
+        o, info = super(BasePredictionEnv, self)._get_reset_return(reset_info)
+        if hasattr(self,"drawer"):
+            for npp in self.drawn_points:
+                npp.detachNode()
+                self.drawer._dying_points.append(npp)
+            self.drawn_points = []
+        else:
+            self.drawn_points = []
+            self.drawer = self.engine.make_point_drawer(scale=3)
+        return o, info
