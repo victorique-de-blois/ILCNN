@@ -119,6 +119,7 @@ if __name__ == '__main__':
             verbose=2,
             seed=seed,
             device="auto",
+            policy_delay=1,
         ),
 
         # Experiment log
