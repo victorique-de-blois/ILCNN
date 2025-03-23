@@ -132,6 +132,20 @@ class FakeHumanEnv(HumanInTheLoopEnv):
     def decide_takeover(self, obs, future_steps_predict):
         predicted_traj, info = self.predict_agent_future_trajectory(obs, future_steps_predict)
         return predicted_traj, info["failure"]
+    
+    # def store_preference_pairs(self, obs, future_steps_preference, agent_action, expert_action):
+    #     predicted_traj, info = self.predict_agent_future_trajectory(obs, future_steps_preference, action_behavior=agent_action)
+        
+        
+    # def add(
+    #     self,
+    #     obs: Dict[str, np.ndarray],
+    #     next_obs: Dict[str, np.ndarray],
+    #     action: np.ndarray,
+    #     reward: np.ndarray,
+    #     done: np.ndarray,
+    #     infos: List[Dict[str, Any]],
+    # ) 
         
     def step(self, actions):
         """Compared to the original one, we call expert_action_prob here and implement a takeover function."""
@@ -196,7 +210,7 @@ class FakeHumanEnv(HumanInTheLoopEnv):
                     expert_action = self.discrete_to_continuous(expert_action)
 
                 actions = expert_action
-                #TODO: self.store_preference_pairs(future_steps_preference, self.agent_action, expert_action)
+                # self.store_preference_pairs(self.last_obs, future_steps_preference, self.agent_action, expert_action)
                 #TODO: render the preference pairs
             # print(f"Action probability: {action_prob:.3f}, agent action: {actions}, expert action: {expert_action}, takeover: {self.takeover}")
 

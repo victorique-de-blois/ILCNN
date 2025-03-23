@@ -22,7 +22,7 @@ if __name__ == '__main__':
     )
     parser.add_argument("--batch_size", default=1024, type=int)
     parser.add_argument("--learning_starts", default=10, type=int)
-    parser.add_argument("--save_freq", default=2000, type=int)
+    parser.add_argument("--save_freq", default=500, type=int)
     parser.add_argument("--seed", default=0, type=int, help="The random seed.")
     parser.add_argument("--wandb", action="store_true", help="Set to True to upload stats to wandb.")
     parser.add_argument("--wandb_project", type=str, default="fakepos", help="The project name for wandb.")
@@ -31,7 +31,7 @@ if __name__ == '__main__':
     parser.add_argument("--bc_loss_weight", type=float, default=0.0)
     parser.add_argument("--with_human_proxy_value_loss", default="True", type=str)
     parser.add_argument("--with_agent_proxy_value_loss", default="True", type=str)
-    parser.add_argument("--adaptive_batch_size", default="False", type=str)
+    parser.add_argument("--adaptive_batch_size", default="True", type=str)
     parser.add_argument("--only_bc_loss", default="False", type=str)
     parser.add_argument("--ckpt", default="", type=str)
     parser.add_argument("--policy_delay", default=1, type=int)
@@ -39,7 +39,6 @@ if __name__ == '__main__':
     parser.add_argument("--update_future_freq", default=10, type=int)
     parser.add_argument("--future_steps_preference", default=3, type=int)
     parser.add_argument("--expert_noise", default=0.4, type=float)
-    parser.add_argument("--simple_batch", default="False", type=str)
     parser.add_argument("--toy_env", action="store_true", help="Whether to use a toy environment.")
     
     args = parser.parse_args()
@@ -48,7 +47,7 @@ if __name__ == '__main__':
     #experiment_batch_name = "{}_freelevel{}".format(args.exp_name, args.free_level)
     experiment_batch_name = "{}_bcw={}".format("PVP", args.bc_loss_weight)
     if args.only_bc_loss=="True":
-        experiment_batch_name = "BCLossOnlyS"
+        experiment_batch_name = "HGDAgger"
     seed = args.seed
     #trial_name = "{}_{}_{}".format(experiment_batch_name, get_time_str(), uuid.uuid4().hex[:8])
     trial_name = "{}_{}".format(experiment_batch_name, uuid.uuid4().hex[:8])
@@ -97,7 +96,6 @@ if __name__ == '__main__':
             with_human_proxy_value_loss=args.with_human_proxy_value_loss,
             with_agent_proxy_value_loss=args.with_agent_proxy_value_loss,
             policy_delay=args.policy_delay,
-            simple_batch=args.simple_batch,
             add_bc_loss="True" if args.bc_loss_weight > 0.0 else "False",
             use_balance_sample=True,
             agent_data_ratio=1.0,
@@ -166,7 +164,7 @@ if __name__ == '__main__':
     if config["env_config"]["use_render"]:
         eval_env, eval_freq = None, -1
     else:
-        eval_env, eval_freq = SubprocVecEnv([_make_eval_env]), 2000
+        eval_env, eval_freq = SubprocVecEnv([_make_eval_env]), 150
 
     # ===== Setup the callbacks =====
     save_freq = args.save_freq  # Number of steps per model checkpoint

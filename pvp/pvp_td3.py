@@ -36,7 +36,7 @@ class PVPTD3(TD3):
         for k in ["no_done_for_positive", "no_done_for_negative", "reward_0_for_positive", "reward_0_for_negative",
                   "reward_n2_for_intervention", "reward_1_for_all", "use_weighted_reward", "remove_negative",
                   "adaptive_batch_size", "add_bc_loss", "only_bc_loss", "with_human_proxy_value_loss",
-                  "with_agent_proxy_value_loss"]:
+                  "with_agent_proxy_value_loss", "simple_batch"]:
             if k in kwargs:
                 v = kwargs.pop(k)
                 assert v in ["True", "False"]
@@ -97,8 +97,16 @@ class PVPTD3(TD3):
         for step in range(gradient_steps):
             self._n_updates += 1
             # Sample replay buffer
-
-            if self.extra_config["adaptive_batch_size"]:
+            if self.extra_config["simple_batch"]:
+                if self.replay_buffer.pos == 0:
+                    replay_data = self.human_data_buffer.sample(int(batch_size), env=self._vec_normalize_env)
+                elif self.human_data_buffer.pos == 0:
+                    replay_data = self.replay_buffer.sample(int(batch_size), env=self._vec_normalize_env)
+                else:
+                    replay_data_agent = self.replay_buffer.sample(int(batch_size), env=self._vec_normalize_env)
+                    replay_data_human = self.human_data_buffer.sample(int(batch_size), env=self._vec_normalize_env)
+                    replay_data = concat_samples(replay_data_agent, replay_data_human)
+            elif self.extra_config["adaptive_batch_size"]:
                 if should_concat:
                     replay_data_agent = self.replay_buffer.sample(human_data_size, env=self._vec_normalize_env)
                     replay_data = concat_samples(replay_data_agent, replay_data_human)
