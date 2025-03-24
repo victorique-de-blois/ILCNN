@@ -168,15 +168,8 @@ class FakeHumanEnv(HumanInTheLoopEnv):
             distribution = self.expert.get_distribution(last_obs)
             log_prob = distribution.log_prob(torch.from_numpy(actions).to(last_obs.device))
             action_prob = log_prob.exp().detach().cpu().numpy()
-
-            if self.config["expert_deterministic"]:
-                expert_action = distribution.mode().detach().cpu().numpy()
-            else:
-                expert_action = distribution.sample().detach().cpu().numpy()
-
-            assert expert_action.shape[0] == action_prob.shape[0] == 1
             action_prob = action_prob[0]
-            expert_action = expert_action[0]
+            expert_action, _  = self.expert.predict(self.last_obs, deterministic=True)
             
             if self.total_steps % update_future_freq == 0:
                 predicted_traj, self.takeover = self.decide_takeover(self.last_obs, future_steps_predict)
