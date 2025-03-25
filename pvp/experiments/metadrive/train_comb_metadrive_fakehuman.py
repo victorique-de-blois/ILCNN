@@ -29,17 +29,13 @@ if __name__ == '__main__':
     parser.add_argument("--wandb_team", type=str, default="victorique", help="The team name for wandb.")
     parser.add_argument("--log_dir", type=str, default=FOLDER_PATH.parent.parent, help="Folder to store the logs.")
     parser.add_argument("--bc_loss_weight", type=float, default=1.0)
-    parser.add_argument("--with_human_proxy_value_loss", default="True", type=str)
-    parser.add_argument("--with_agent_proxy_value_loss", default="True", type=str)
     parser.add_argument("--adaptive_batch_size", default="False", type=str)
     parser.add_argument("--only_bc_loss", default="False", type=str)
     parser.add_argument("--ckpt", default="", type=str)
-    parser.add_argument("--policy_delay", default=1, type=int)
     parser.add_argument("--future_steps_predict", default=20, type=int)
     parser.add_argument("--update_future_freq", default=10, type=int)
     parser.add_argument("--future_steps_preference", default=3, type=int)
     parser.add_argument("--expert_noise", default=0, type=float)
-    parser.add_argument("--simple_batch", default="True", type=str)
     parser.add_argument("--toy_env", action="store_true", help="Whether to use a toy environment.")
     parser.add_argument("--dpo_loss_weight", default=1.0, type=float)
     parser.add_argument("--alpha", default=0.1, type=float)
@@ -50,8 +46,8 @@ if __name__ == '__main__':
     # ===== Set up some arguments =====
     #experiment_batch_name = "{}_freelevel{}".format(args.exp_name, args.free_level)
     experiment_batch_name = "{}_bcw={}".format("Ours", args.bc_loss_weight)
-    if args.only_bc_loss=="True":
-        experiment_batch_name = "BCLossOnlyS"
+    if (args.only_bc_loss=="True") or (args.dpo_loss_weight == 0):
+        experiment_batch_name = "BCLossOnly_"
     seed = args.seed
     #trial_name = "{}_{}_{}".format(experiment_batch_name, get_time_str(), uuid.uuid4().hex[:8])
     trial_name = "{}_{}".format(experiment_batch_name, uuid.uuid4().hex[:8])
@@ -97,10 +93,6 @@ if __name__ == '__main__':
             adaptive_batch_size=args.adaptive_batch_size,
             bc_loss_weight=args.bc_loss_weight,
             only_bc_loss=args.only_bc_loss,
-            with_human_proxy_value_loss=args.with_human_proxy_value_loss,
-            with_agent_proxy_value_loss=args.with_agent_proxy_value_loss,
-            policy_delay=args.policy_delay,
-            simple_batch=args.simple_batch,
             dpo_loss_weight = args.dpo_loss_weight,
             alpha = args.alpha,
             bias = args.bias,
@@ -218,4 +210,5 @@ if __name__ == '__main__':
         # logging
         tb_log_name=experiment_batch_name,
         log_interval=1,
+        save_buffer=False,
     )

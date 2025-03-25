@@ -354,15 +354,6 @@ class PVPTD3(TD3):
 class COMB(PVPTD3):
     def __init__(self, *args, **kwargs):
         super(COMB, self).__init__(*args, **kwargs)
-        self.preference_buffer = HACOReplayBuffer(
-            self.buffer_size,
-            self.observation_space,
-            self.action_space,
-            self.device,
-            n_envs=self.n_envs,
-            optimize_memory_usage=self.optimize_memory_usage,
-            **self.replay_buffer_kwargs
-        )
         self.imagreplay_buffer = PrefReplayBuffer(
                 self.buffer_size,
                 self.observation_space,
@@ -374,7 +365,7 @@ class COMB(PVPTD3):
                 **self.replay_buffer_kwargs,
         )
     def _excluded_save_params(self) -> List[str]:
-        return super()._excluded_save_params() + ["preference_buffer", "imagreplay_buffer", "human_data_buffer"]
+        return super()._excluded_save_params() + ["imagreplay_buffer", "human_data_buffer"]
     
     def train(self, gradient_steps: int, batch_size: int = 100) -> None:
         # Switch to train mode (this affects batch norm / dropout)
@@ -396,6 +387,10 @@ class COMB(PVPTD3):
             new_action = self.actor(replay_data.observations)
             bc_loss = F.mse_loss(replay_data.actions_behavior, new_action, reduction="none").mean()
             
+            stat_recorder["new_action_steering"] = new_action[:, 0].mean().item()
+            stat_recorder["new_action_abs_steering"] = th.abs(new_action[:, 0]).mean().item()
+            stat_recorder["new_action_accerler"] = new_action[:, 1].mean().item()
+
             pos_obs, pos_action = preference_data.pos_observations.squeeze(), preference_data.pos_actions.squeeze()
             neg_obs, neg_action = preference_data.neg_observations.squeeze(), preference_data.neg_actions.squeeze()
             
@@ -412,6 +407,9 @@ class COMB(PVPTD3):
             dpo_loss, accuracy = biased_bce_with_logits(adv_neg, adv_pos, label.float(), bias=bias)
             
             bc_loss_weight, dpo_loss_weight = self.extra_config["bc_loss_weight"], self.extra_config["dpo_loss_weight"]
+            if self.extra_config["only_bc_loss"]:
+                bc_loss_weight, dpo_loss_weight = 1.0, 0.0
+            
             loss = bc_loss_weight * bc_loss + dpo_loss_weight * dpo_loss
             
             self.actor.optimizer.zero_grad()
@@ -424,260 +422,8 @@ class COMB(PVPTD3):
             stat_recorder["loss"].append(loss.item() if loss is not None else float('nan'))
 
         self._n_updates += gradient_steps
-        self.logger.record("train/predicted_steps", self.preference_buffer.pos)
+        self.logger.record("train/predicted_steps", self.imagreplay_buffer.pos)
         self.logger.record("train/human_involved_steps", self.human_data_buffer.pos)
-
         self.logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
         for key, values in stat_recorder.items():
             self.logger.record("train/{}".format(key), np.mean(values))
-
-# class COMB(TD3):
-#     def __init__(
-#         self,
-#         policy: Union[str, Type[HACOPolicy]],
-#         env: Union[GymEnv, str],
-#         learning_rate: float = 1e-4,
-#         buffer_size: int = 100,  # Shrink the size to reduce memory consumption when testing
-#         learning_starts: int = 100,
-#         batch_size: int = 256,
-#         tau: float = 0.005,
-#         gamma: float = 0.99,
-#         train_freq: Union[int, Tuple[int, str]] = 1,
-#         gradient_steps: int = 1,
-#         action_noise: Optional[ActionNoise] = None,
-#         replay_buffer_class: Optional[HACOReplayBuffer] = HACOReplayBuffer,  # PZH: !! Use HACO Replay Buffer
-#         replay_buffer_kwargs: Optional[Dict[str, Any]] = None,
-#         optimize_memory_usage: bool = True,
-#         ent_coef: Union[str, float] = "auto",
-#         target_update_interval: int = 1,
-#         target_entropy: Union[str, float] = "auto",
-#         use_sde: bool = False,
-#         sde_sample_freq: int = -1,
-#         use_sde_at_warmup: bool = False,
-#         tensorboard_log: Optional[str] = None,
-#         create_eval_env: bool = False,
-#         policy_kwargs: Optional[Dict[str, Any]] = None,
-#         verbose: int = 0,
-#         seed: Optional[int] = None,
-#         device: Union[th.device, str] = "auto",
-#         _init_setup_model: bool = True,
-
-#         # PZH: Our new introduce hyper-parameters
-#         cql_coefficient=1,
-#         monitor_wrapper=False,
-#         future_steps=5,
-#         bias=0,
-#         cbias=0,
-#         alpha=0.1,
-#         poso="pos_observations",
-#         posa="pos_actions",
-#         nego="neg_observations",
-#         nega="neg_actions",
-#         cpl_loss_weight=1.0,
-#         bc_loss_weight=1.0,
-#         use_bc_only=False,
-#         use_bcmse_only=False,
-#         stop_freq=5,
-#         use_ref=False,
-#         imgweight=1.0,
-#         img_future_steps=1,
-#         **kwargs,
-#     ):
-
-#         assert replay_buffer_class == HACOReplayBuffer
-#         self.bias = bias
-#         self.cbias, self.alpha, self.bc_loss_weight, self.use_bc_only = cbias, alpha, bc_loss_weight, use_bc_only
-#         self.poso, self.posa, self.nego, self.nega = poso, posa, nego, nega
-#         self.cpl_loss_weight, self.use_bcmse_only = cpl_loss_weight, use_bcmse_only
-#         self.use_ref = use_ref
-
-#         super().__init__(
-#             policy,
-#             env,
-#             learning_rate,
-#             buffer_size,
-#             learning_starts,
-#             batch_size,
-#             tau,
-#             gamma,
-#             train_freq,
-#             gradient_steps,
-#             action_noise,
-#             replay_buffer_class=replay_buffer_class,
-#             replay_buffer_kwargs=replay_buffer_kwargs,
-#             policy_kwargs=policy_kwargs,
-#             tensorboard_log=tensorboard_log,
-#             verbose=verbose,
-#             device=device,
-#             create_eval_env=create_eval_env,
-#             seed=seed,
-#             optimize_memory_usage=optimize_memory_usage,
-#             monitor_wrapper=monitor_wrapper
-#         )
-#         # PZH: Define some new variables
-#         self.cql_coefficient = cql_coefficient
-#         from pvp.sb3.haco.haco_buffer import PrefReplayBuffer
-#         # self.future_steps = future_steps
-#         self.stop_freq = stop_freq
-#         self.imgweight=imgweight
-#         self.img_future_steps = img_future_steps
-        
-#         self.imagreplay_buffer = PrefReplayBuffer(
-#                 self.buffer_size,
-#                 self.observation_space,
-#                 self.action_space,
-#                 self.device,
-#                 n_envs=self.n_envs,
-#                 optimize_memory_usage=self.optimize_memory_usage,
-#                 future_steps=self.img_future_steps,
-#                 **self.replay_buffer_kwargs,
-#         )
-
-#     # def _create_aliases(self) -> None:
-#     #     super()._create_aliases()
-#     #     self.cost_critic = self.policy.cost_critic
-#     #     self.cost_critic_target = self.policy.cost_critic_target
-#     def _store_transition(
-#         self,
-#         replay_buffer,
-#         buffer_action: np.ndarray,
-#         new_obs: Union[np.ndarray, Dict[str, np.ndarray]],
-#         reward: np.ndarray,
-#         dones: np.ndarray,
-#         infos: List[Dict[str, Any]],
-#     ) -> None:
-#         if infos[0]["takeover"] or infos[0]["takeover_start"]:
-#             replay_buffer = self.human_data_buffer
-#         super()._store_transition(replay_buffer, buffer_action, new_obs, reward, dones, infos)
-#     def _create_aliases(self) -> None:
-#         import copy
-#         self.policy_target = copy.deepcopy(self.policy)
-#     def train(self, gradient_steps: int, batch_size: int = 64) -> None:
-#         # Switch to train mode (this affects batch norm / dropout)
-#         self.policy.actor.set_training_mode(True)
-#         # Update optimizers learning rate
-#         self._update_learning_rate([self.policy.actor.optimizer])
-
-#         stat_recorder = defaultdict(list)
-
-#         for gradient_step in range(gradient_steps):
-#             # ========== Compute the CPL loss ==========
-#             bc_loss_weight = self.bc_loss_weight 
-
-#             # Sample replay buffer
-#             replay_data_human = None
-#             replay_data_agent = None
-#             if self.human_data_buffer.pos > 0:
-#                 replay_data_human = self.human_data_buffer.sample(batch_size, env=self._vec_normalize_env)
-
-#             if self.imagreplay_buffer.pos > 0:
-#                 replay_data = self.imagreplay_buffer.sample(batch_size, env=self._vec_normalize_env)
-#             else:
-#                 loss = None
-#                 break
-
-#             alpha = self.alpha
-#             accuracy = cpl_loss = bc_loss = None
-            
-#             mask = replay_data.mask
-            
-#             pos_obs, pos_action = getattr(replay_data, self.poso), getattr(replay_data, self.posa)
-#             mask_reshape = mask.view(-1)
-
-#             def get_log_prob(policy, pos_obs, pos_action):
-#                     pos_obs_reshape = th.reshape(pos_obs, (-1, pos_obs.shape[-1]))
-#                     pos_action_reshape = th.reshape(pos_action, (-1, pos_action.shape[-1]))
-#                     mean = policy.actor(pos_obs_reshape)
-#                     log_prob_pos = -((mean - pos_action_reshape) ** 2).sum(dim = -1)
-#                     #log_prob_pos = th.reshape(log_prob_pos, pos_obs.shape[:-1]) * mask
-#                     #log_prob_pos = log_prob_pos.sum(dim = -1)
-#                     log_prob_pos = log_prob_pos * mask_reshape
-#                     return log_prob_pos
-            
-#             log_prob_pos = get_log_prob(self.policy, pos_obs, pos_action)
-#             if self.use_ref:
-#                 with th.no_grad():
-#                     log_prob_pos_ref = get_log_prob(self.policy_ref, pos_obs, pos_action)
-#                 log_prob_pos -= log_prob_pos_ref
-
-            
-#             neg_obs, neg_action = getattr(replay_data, self.nego), getattr(replay_data, self.nega)
-            
-#             log_prob_neg = get_log_prob(self.policy, neg_obs, neg_action)
-            
-#             if self.use_ref:
-#                 with th.no_grad():
-#                     log_prob_neg_ref = get_log_prob(self.policy_ref, neg_obs, neg_action)
-#                 log_prob_neg -= log_prob_neg_ref
-            
-#             adv_pos, adv_neg = alpha * log_prob_pos, alpha * log_prob_neg
-#             label = torch.ones_like(adv_pos)
-#             cpl_loss, accuracy = biased_bce_with_logits(adv_neg, adv_pos, label.float(), bias=self.bias, cbias=self.cbias)
-
-#             if replay_data_human is not None:
-#                 new_action = self.policy.actor(replay_data_human.observations)
-#                 bc_loss = F.mse_loss(replay_data_human.actions_behavior, new_action, reduction="none").mean() ##-log_probs_tmp1.mean()
-#                 stat_recorder["new_action_steering"] = new_action[:, 0].mean().item()
-#                 stat_recorder["new_action_abs_steering"] = th.abs(new_action[:, 0]).mean().item()
-#                 stat_recorder["new_action_accerler"] = new_action[:, 1].mean().item()
-
-#             # Aggregate losses
-#             if bc_loss is None and cpl_loss is None:
-#                 break
-            
-#             if not self.use_bc_only and not self.use_bcmse_only:
-#                 loss = bc_loss_weight * (bc_loss
-#                                      if bc_loss is not None else 0.0) + self.cpl_loss_weight * (cpl_loss if cpl_loss is not None else 0.0)
-
-#             self._optimize_actor(actor_loss=loss)
-
-#             # Stats
-#             stat_recorder["bc_loss"].append(bc_loss.item() if bc_loss is not None else float('nan'))
-#             stat_recorder["cpl_loss"].append(cpl_loss.item() if cpl_loss is not None else float('nan'))
-#             stat_recorder["cpl_accuracy"].append(accuracy.item() if accuracy is not None else float('nan'))
-#             stat_recorder["loss"].append(loss.item() if loss is not None else float('nan'))
-
-
-#         self._n_updates += gradient_steps
-
-#         self.logger.record("train/num_traj", self.imagreplay_buffer.pos)
-#         self.logger.record("train/n_updates", self._n_updates)
-#         self.logger.record("train/human_involved_steps", self.human_data_buffer.pos)
-#         try:
-#             import wandb
-#             wandb.log(self.logger.name_to_value, step=self.num_timesteps)
-#         except:
-#             pass
-#         for key, values in stat_recorder.items():
-#             self.logger.record("train/{}".format(key), np.mean(values))
-
-#     def _optimize_actor(self, actor_loss):
-#         self.policy.actor.optimizer.zero_grad()
-#         actor_loss.backward()
-#         self.policy.actor.optimizer.step()
-
-#     # def _optimize_critics(self, merged_critic_loss):
-#     #     self.critic.optimizer.zero_grad()
-#     #     merged_critic_loss.backward()
-#     #     self.critic.optimizer.step()
-
-#     def _excluded_save_params(self) -> List[str]:
-#         return super()._excluded_save_params() + ["imagreplay_buffer", "human_data_buffer", "policy_ref"]
-    
-#     def _get_torch_save_params(self):
-#         ret = super()._get_torch_save_params()
-#         # print(1)
-#         return (['policy'], [])
-
-#     def _setup_model(self) -> None:
-#         super()._setup_model()
-#         self.human_data_buffer = HACOReplayBuffer(
-#             self.buffer_size,
-#             self.observation_space,
-#             self.action_space,
-#             self.device,
-#             n_envs=self.n_envs,
-#             optimize_memory_usage=self.optimize_memory_usage,
-#             **self.replay_buffer_kwargs
-#         )
-#         # self.human_data_buffer

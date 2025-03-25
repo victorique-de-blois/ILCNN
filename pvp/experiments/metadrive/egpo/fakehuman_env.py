@@ -85,7 +85,6 @@ class FakeHumanEnv(HumanInTheLoopEnv):
     last_obs = None
     expert = None
     from collections import deque 
-    advantages = deque(maxlen = 200)
     drawn_points = []
     
     def __init__(self, config):
@@ -117,13 +116,11 @@ class FakeHumanEnv(HumanInTheLoopEnv):
                 "use_discrete": False,
                 "disable_expert": False,
                 "agent_policy": EnvInputPolicy,
-                "free_level": 0.9,
                 "manual_control": False,
                 "use_render": False,
                 "expert_deterministic": False,
-                "future_steps": 20,
-                "takeover_see": 20,
-                "stop_freq": 10,
+                "future_steps_predict": 20,
+                "update_future_freq": 10,
                 "stop_img_samples": 3, 
                 "expert_noise": 0,
             }
@@ -149,6 +146,7 @@ class FakeHumanEnv(HumanInTheLoopEnv):
     def decide_takeover(self, obs, future_steps_predict):
         predicted_traj_real, info_real = self.predict_agent_future_trajectory(obs, future_steps_predict)
         assert info_real["failure"] == (info_real["total_reward"] < 0)
+        self.render_traj(predicted_traj_real, (info_real["failure"], 1 - info_real["failure"], 0))
         return info_real["failure"]
     
     def store_preference_pairs(self, predicted_traj, future_steps_preference, expert_action):
@@ -173,9 +171,9 @@ class FakeHumanEnv(HumanInTheLoopEnv):
         self.agent_action = copy.copy(actions)
         self.last_takeover = self.takeover
         
-        future_steps = self.config["future_steps"]
-        stop_freq = self.config["stop_freq"]
-        stop_img_samples = self.config["stop_img_samples"]
+        future_steps_predict = self.config["future_steps_predict"]
+        update_future_freq = self.config["update_future_freq"]
+        future_steps_preference = self.config["future_steps_preference"]
         expert_noise_bound = self.config["expert_noise"]
         
         if self.expert is None:
@@ -191,21 +189,21 @@ class FakeHumanEnv(HumanInTheLoopEnv):
         enoise = np.random.randn(2) * expert_noise_bound
         expert_action = np.clip(enoise + expert_action, self.action_space.low, self.action_space.high)
         
-        if (self.total_steps % stop_freq == 0):
-            self.takeover = self.decide_takeover(self.last_obs, future_steps)
+        if (self.total_steps % update_future_freq == 0):
+            self.render_reset()
+            self.takeover = self.decide_takeover(self.last_obs, future_steps_predict)
 
         if self.takeover:
-            predicted_traj, info2 = self.predict_agent_future_trajectory(self.last_obs, future_steps, action_behavior=self.agent_action.copy())
+            predicted_traj, info2 = self.predict_agent_future_trajectory(self.last_obs, future_steps_predict, action_behavior=self.agent_action.copy())
             if self.config["use_discrete"]:
                 expert_action = self.continuous_to_discrete(expert_action)
                 expert_action = self.discrete_to_continuous(expert_action)
             actions = expert_action
             if hasattr(self, "model") and hasattr(self.model, "imagreplay_buffer"):
-                self.store_preference_pairs(predicted_traj, stop_img_samples, expert_action.copy())
+                self.store_preference_pairs(predicted_traj, future_steps_preference, expert_action.copy())
             
         o, r, d, i = super(HumanInTheLoopEnv, self).step(actions)
         
-        self.vehicle.real = False
         self.takeover_recorder.append(self.takeover)
         self.total_steps += 1
 
@@ -220,7 +218,6 @@ class FakeHumanEnv(HumanInTheLoopEnv):
                     "Takeover Cost": round(self.total_takeover_cost, 2),
                     "Takeover": "TAKEOVER" if self.takeover else "NO",
                     "Total Step": self.total_steps,
-                    # "Total Time": time.strftime("%M:%S", time.gmtime(time.time() - self.start_time)),
                     "Takeover Rate": "{:.2f}%".format(np.mean(np.array(self.takeover_recorder) * 100)),
                     "Pause": "Press E",
                 }
@@ -259,19 +256,10 @@ class FakeHumanEnv(HumanInTheLoopEnv):
 
     def _get_reset_return(self, reset_info):
         o, info = super(HumanInTheLoopEnv, self)._get_reset_return(reset_info)
-        if hasattr(self,"drawer"):
-                drawer = self.drawer # create a point drawer
-        else:
-                self.drawer = self.engine.make_point_drawer(scale=3)
-                
         self.last_obs = o
         self.last_takeover = False
-        for npp in self.drawn_points:
-            npp.detachNode()
-            self.drawer._dying_points.append(npp)
-        self.drawn_points = []
+        self.render_reset()
         return o, info
-    
 
 if __name__ == "__main__":
     env = FakeHumanEnv(dict(use_render=True, num_scenarios=1, traffic_density=0))

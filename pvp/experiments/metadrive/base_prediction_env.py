@@ -346,3 +346,22 @@ class BasePredictionEnv(SafeMetaDriveEnv):
             self.drawn_points = []
             self.drawer = self.engine.make_point_drawer(scale=3)
         return o, info
+    
+    
+    def render_reset(self):
+        if hasattr(self,"drawer"):
+            drawer = self.drawer # create a point drawer
+        else:
+            self.drawer = self.engine.make_point_drawer(scale=3)
+        for npp in self.drawn_points:
+            npp.detachNode()
+            self.drawer._dying_points.append(npp)
+        self.drawn_points = []
+        
+    def render_traj(self, predicted_traj, color):
+        if self.config["use_render"]:
+            points, colors = [], []
+            for j in range(len(predicted_traj)):
+                points.append((predicted_traj[j]["next_pos"][0], predicted_traj[j]["next_pos"][1], 0.5)) # define line 1 for test
+                colors.append(np.clip(np.array([*color,1]), 0., 1.0))
+            self.drawn_points = self.drawn_points + self.draw_points(points, colors)
