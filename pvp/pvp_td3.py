@@ -1,3 +1,6 @@
+"""
+Implemented based on SAC (as it uses stochastic policy)
+"""
 import copy
 import io
 import logging
@@ -17,8 +20,28 @@ from pvp.sb3.common.type_aliases import GymEnv, MaybeCallback
 from pvp.sb3.common.utils import polyak_update
 from pvp.sb3.haco.haco_buffer import HACOReplayBuffer, concat_samples
 from pvp.sb3.td3.td3 import TD3
+from pvp.sb3.haco.haco_buffer import PrefReplayBuffer
 
-logger = logging.getLogger(__name__)
+
+def biased_bce_with_logits(adv1, adv2, y, bias=1.0, cbias = 0):
+    # Apply the log-sum-exp trick.
+    # y = 1 if we prefer x2 to x1
+    # We need to implement the numerical stability trick.
+
+    logit21 = adv2 - bias * adv1 - cbias
+    logit12 = adv1 - bias * adv2
+    max21 = torch.clamp(-logit21, min=0, max=None)
+    max12 = torch.clamp(-logit12, min=0, max=None)
+    nlp21 = torch.log(torch.exp(-max21) + torch.exp(-logit21 - max21)) + max21
+    nlp12 = torch.log(torch.exp(-max12) + torch.exp(-logit12 - max12)) + max12
+    loss = y * nlp21 + (1 - y) * nlp12
+    loss = loss.mean()
+
+    # Now compute the accuracy
+    with torch.no_grad():
+        accuracy = ((adv2 > adv1) == torch.round(y)).float().mean()
+
+    return loss, accuracy
 
 class PVPTD3(TD3):
     def __init__(self, use_balance_sample=True, q_value_bound=1., *args, **kwargs):
@@ -318,33 +341,15 @@ class PVPTD3(TD3):
                 buffer_location_replay = os.path.join(
                     save_path_replay, "replay_buffer_" + str(self.num_timesteps) + ".pkl"
                 )
-                logger.info("Saving..." + str(buffer_location_human))
-                logger.info("Saving..." + str(buffer_location_replay))
+                self.logger.info("Saving..." + str(buffer_location_human))
+                self.logger.info("Saving..." + str(buffer_location_replay))
                 self.save_replay_buffer(buffer_location_human, buffer_location_replay)
 
         callback.on_training_end()
 
         return self
 
-def biased_bce_with_logits(adv1, adv2, y, bias=1.0):
-    # Apply the log-sum-exp trick.
-    # y = 1 if we prefer x2 to x1
-    # We need to implement the numerical stability trick.
 
-    logit21 = adv2 - bias * adv1
-    logit12 = adv1 - bias * adv2
-    max21 = torch.clamp(-logit21, min=0, max=None)
-    max12 = torch.clamp(-logit12, min=0, max=None)
-    nlp21 = torch.log(torch.exp(-max21) + torch.exp(-logit21 - max21)) + max21
-    nlp12 = torch.log(torch.exp(-max12) + torch.exp(-logit12 - max12)) + max12
-    loss = y * nlp21 + (1 - y) * nlp12
-    loss = loss.mean()
-
-    # Now compute the accuracy
-    with torch.no_grad():
-        accuracy = ((adv2 > adv1) == torch.round(y)).float().mean()
-
-    return loss, accuracy
 
 class COMB(PVPTD3):
     def __init__(self, *args, **kwargs):
@@ -358,8 +363,18 @@ class COMB(PVPTD3):
             optimize_memory_usage=self.optimize_memory_usage,
             **self.replay_buffer_kwargs
         )
+        self.imagreplay_buffer = PrefReplayBuffer(
+                self.buffer_size,
+                self.observation_space,
+                self.action_space,
+                self.device,
+                n_envs=self.n_envs,
+                optimize_memory_usage=self.optimize_memory_usage,
+                future_steps=1,
+                **self.replay_buffer_kwargs,
+        )
     def _excluded_save_params(self) -> List[str]:
-        return super()._excluded_save_params() + ["preference_buffer", "human_data_buffer"]
+        return super()._excluded_save_params() + ["preference_buffer", "imagreplay_buffer", "human_data_buffer"]
     
     def train(self, gradient_steps: int, batch_size: int = 100) -> None:
         # Switch to train mode (this affects batch norm / dropout)
@@ -376,13 +391,13 @@ class COMB(PVPTD3):
             if self.human_data_buffer.pos == 0:
                 break
             replay_data = self.human_data_buffer.sample(int(batch_size), env=self._vec_normalize_env)
-            preference_data = self.preference_buffer.sample(int(batch_size), env=self._vec_normalize_env)
+            preference_data = self.imagreplay_buffer.sample(int(batch_size), env=self._vec_normalize_env)
             
             new_action = self.actor(replay_data.observations)
             bc_loss = F.mse_loss(replay_data.actions_behavior, new_action, reduction="none").mean()
             
-            pos_obs, pos_action = preference_data.observations, preference_data.actions_behavior
-            neg_obs, neg_action = preference_data.observations, preference_data.actions_novice
+            pos_obs, pos_action = preference_data.pos_observations.squeeze(), preference_data.pos_actions.squeeze()
+            neg_obs, neg_action = preference_data.neg_observations.squeeze(), preference_data.neg_actions.squeeze()
             
             def get_log_prob(obs, target_action):
                 mean = self.actor(obs)
@@ -415,191 +430,254 @@ class COMB(PVPTD3):
         self.logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
         for key, values in stat_recorder.items():
             self.logger.record("train/{}".format(key), np.mean(values))
+
+# class COMB(TD3):
+#     def __init__(
+#         self,
+#         policy: Union[str, Type[HACOPolicy]],
+#         env: Union[GymEnv, str],
+#         learning_rate: float = 1e-4,
+#         buffer_size: int = 100,  # Shrink the size to reduce memory consumption when testing
+#         learning_starts: int = 100,
+#         batch_size: int = 256,
+#         tau: float = 0.005,
+#         gamma: float = 0.99,
+#         train_freq: Union[int, Tuple[int, str]] = 1,
+#         gradient_steps: int = 1,
+#         action_noise: Optional[ActionNoise] = None,
+#         replay_buffer_class: Optional[HACOReplayBuffer] = HACOReplayBuffer,  # PZH: !! Use HACO Replay Buffer
+#         replay_buffer_kwargs: Optional[Dict[str, Any]] = None,
+#         optimize_memory_usage: bool = True,
+#         ent_coef: Union[str, float] = "auto",
+#         target_update_interval: int = 1,
+#         target_entropy: Union[str, float] = "auto",
+#         use_sde: bool = False,
+#         sde_sample_freq: int = -1,
+#         use_sde_at_warmup: bool = False,
+#         tensorboard_log: Optional[str] = None,
+#         create_eval_env: bool = False,
+#         policy_kwargs: Optional[Dict[str, Any]] = None,
+#         verbose: int = 0,
+#         seed: Optional[int] = None,
+#         device: Union[th.device, str] = "auto",
+#         _init_setup_model: bool = True,
+
+#         # PZH: Our new introduce hyper-parameters
+#         cql_coefficient=1,
+#         monitor_wrapper=False,
+#         future_steps=5,
+#         bias=0,
+#         cbias=0,
+#         alpha=0.1,
+#         poso="pos_observations",
+#         posa="pos_actions",
+#         nego="neg_observations",
+#         nega="neg_actions",
+#         cpl_loss_weight=1.0,
+#         bc_loss_weight=1.0,
+#         use_bc_only=False,
+#         use_bcmse_only=False,
+#         stop_freq=5,
+#         use_ref=False,
+#         imgweight=1.0,
+#         img_future_steps=1,
+#         **kwargs,
+#     ):
+
+#         assert replay_buffer_class == HACOReplayBuffer
+#         self.bias = bias
+#         self.cbias, self.alpha, self.bc_loss_weight, self.use_bc_only = cbias, alpha, bc_loss_weight, use_bc_only
+#         self.poso, self.posa, self.nego, self.nega = poso, posa, nego, nega
+#         self.cpl_loss_weight, self.use_bcmse_only = cpl_loss_weight, use_bcmse_only
+#         self.use_ref = use_ref
+
+#         super().__init__(
+#             policy,
+#             env,
+#             learning_rate,
+#             buffer_size,
+#             learning_starts,
+#             batch_size,
+#             tau,
+#             gamma,
+#             train_freq,
+#             gradient_steps,
+#             action_noise,
+#             replay_buffer_class=replay_buffer_class,
+#             replay_buffer_kwargs=replay_buffer_kwargs,
+#             policy_kwargs=policy_kwargs,
+#             tensorboard_log=tensorboard_log,
+#             verbose=verbose,
+#             device=device,
+#             create_eval_env=create_eval_env,
+#             seed=seed,
+#             optimize_memory_usage=optimize_memory_usage,
+#             monitor_wrapper=monitor_wrapper
+#         )
+#         # PZH: Define some new variables
+#         self.cql_coefficient = cql_coefficient
+#         from pvp.sb3.haco.haco_buffer import PrefReplayBuffer
+#         # self.future_steps = future_steps
+#         self.stop_freq = stop_freq
+#         self.imgweight=imgweight
+#         self.img_future_steps = img_future_steps
+        
+#         self.imagreplay_buffer = PrefReplayBuffer(
+#                 self.buffer_size,
+#                 self.observation_space,
+#                 self.action_space,
+#                 self.device,
+#                 n_envs=self.n_envs,
+#                 optimize_memory_usage=self.optimize_memory_usage,
+#                 future_steps=self.img_future_steps,
+#                 **self.replay_buffer_kwargs,
+#         )
+
+#     # def _create_aliases(self) -> None:
+#     #     super()._create_aliases()
+#     #     self.cost_critic = self.policy.cost_critic
+#     #     self.cost_critic_target = self.policy.cost_critic_target
+#     def _store_transition(
+#         self,
+#         replay_buffer,
+#         buffer_action: np.ndarray,
+#         new_obs: Union[np.ndarray, Dict[str, np.ndarray]],
+#         reward: np.ndarray,
+#         dones: np.ndarray,
+#         infos: List[Dict[str, Any]],
+#     ) -> None:
+#         if infos[0]["takeover"] or infos[0]["takeover_start"]:
+#             replay_buffer = self.human_data_buffer
+#         super()._store_transition(replay_buffer, buffer_action, new_obs, reward, dones, infos)
+#     def _create_aliases(self) -> None:
+#         import copy
+#         self.policy_target = copy.deepcopy(self.policy)
+#     def train(self, gradient_steps: int, batch_size: int = 64) -> None:
+#         # Switch to train mode (this affects batch norm / dropout)
+#         self.policy.actor.set_training_mode(True)
+#         # Update optimizers learning rate
+#         self._update_learning_rate([self.policy.actor.optimizer])
+
+#         stat_recorder = defaultdict(list)
+
+#         for gradient_step in range(gradient_steps):
+#             # ========== Compute the CPL loss ==========
+#             bc_loss_weight = self.bc_loss_weight 
+
+#             # Sample replay buffer
+#             replay_data_human = None
+#             replay_data_agent = None
+#             if self.human_data_buffer.pos > 0:
+#                 replay_data_human = self.human_data_buffer.sample(batch_size, env=self._vec_normalize_env)
+
+#             if self.imagreplay_buffer.pos > 0:
+#                 replay_data = self.imagreplay_buffer.sample(batch_size, env=self._vec_normalize_env)
+#             else:
+#                 loss = None
+#                 break
+
+#             alpha = self.alpha
+#             accuracy = cpl_loss = bc_loss = None
+            
+#             mask = replay_data.mask
+            
+#             pos_obs, pos_action = getattr(replay_data, self.poso), getattr(replay_data, self.posa)
+#             mask_reshape = mask.view(-1)
+
+#             def get_log_prob(policy, pos_obs, pos_action):
+#                     pos_obs_reshape = th.reshape(pos_obs, (-1, pos_obs.shape[-1]))
+#                     pos_action_reshape = th.reshape(pos_action, (-1, pos_action.shape[-1]))
+#                     mean = policy.actor(pos_obs_reshape)
+#                     log_prob_pos = -((mean - pos_action_reshape) ** 2).sum(dim = -1)
+#                     #log_prob_pos = th.reshape(log_prob_pos, pos_obs.shape[:-1]) * mask
+#                     #log_prob_pos = log_prob_pos.sum(dim = -1)
+#                     log_prob_pos = log_prob_pos * mask_reshape
+#                     return log_prob_pos
+            
+#             log_prob_pos = get_log_prob(self.policy, pos_obs, pos_action)
+#             if self.use_ref:
+#                 with th.no_grad():
+#                     log_prob_pos_ref = get_log_prob(self.policy_ref, pos_obs, pos_action)
+#                 log_prob_pos -= log_prob_pos_ref
+
+            
+#             neg_obs, neg_action = getattr(replay_data, self.nego), getattr(replay_data, self.nega)
+            
+#             log_prob_neg = get_log_prob(self.policy, neg_obs, neg_action)
+            
+#             if self.use_ref:
+#                 with th.no_grad():
+#                     log_prob_neg_ref = get_log_prob(self.policy_ref, neg_obs, neg_action)
+#                 log_prob_neg -= log_prob_neg_ref
+            
+#             adv_pos, adv_neg = alpha * log_prob_pos, alpha * log_prob_neg
+#             label = torch.ones_like(adv_pos)
+#             cpl_loss, accuracy = biased_bce_with_logits(adv_neg, adv_pos, label.float(), bias=self.bias, cbias=self.cbias)
+
+#             if replay_data_human is not None:
+#                 new_action = self.policy.actor(replay_data_human.observations)
+#                 bc_loss = F.mse_loss(replay_data_human.actions_behavior, new_action, reduction="none").mean() ##-log_probs_tmp1.mean()
+#                 stat_recorder["new_action_steering"] = new_action[:, 0].mean().item()
+#                 stat_recorder["new_action_abs_steering"] = th.abs(new_action[:, 0]).mean().item()
+#                 stat_recorder["new_action_accerler"] = new_action[:, 1].mean().item()
+
+#             # Aggregate losses
+#             if bc_loss is None and cpl_loss is None:
+#                 break
+            
+#             if not self.use_bc_only and not self.use_bcmse_only:
+#                 loss = bc_loss_weight * (bc_loss
+#                                      if bc_loss is not None else 0.0) + self.cpl_loss_weight * (cpl_loss if cpl_loss is not None else 0.0)
+
+#             self._optimize_actor(actor_loss=loss)
+
+#             # Stats
+#             stat_recorder["bc_loss"].append(bc_loss.item() if bc_loss is not None else float('nan'))
+#             stat_recorder["cpl_loss"].append(cpl_loss.item() if cpl_loss is not None else float('nan'))
+#             stat_recorder["cpl_accuracy"].append(accuracy.item() if accuracy is not None else float('nan'))
+#             stat_recorder["loss"].append(loss.item() if loss is not None else float('nan'))
+
+
+#         self._n_updates += gradient_steps
+
+#         self.logger.record("train/num_traj", self.imagreplay_buffer.pos)
+#         self.logger.record("train/n_updates", self._n_updates)
+#         self.logger.record("train/human_involved_steps", self.human_data_buffer.pos)
+#         try:
+#             import wandb
+#             wandb.log(self.logger.name_to_value, step=self.num_timesteps)
+#         except:
+#             pass
+#         for key, values in stat_recorder.items():
+#             self.logger.record("train/{}".format(key), np.mean(values))
+
+#     def _optimize_actor(self, actor_loss):
+#         self.policy.actor.optimizer.zero_grad()
+#         actor_loss.backward()
+#         self.policy.actor.optimizer.step()
+
+#     # def _optimize_critics(self, merged_critic_loss):
+#     #     self.critic.optimizer.zero_grad()
+#     #     merged_critic_loss.backward()
+#     #     self.critic.optimizer.step()
+
+#     def _excluded_save_params(self) -> List[str]:
+#         return super()._excluded_save_params() + ["imagreplay_buffer", "human_data_buffer", "policy_ref"]
     
-    
-class PVPES(PVPTD3):
-    actor_update_count = 0
+#     def _get_torch_save_params(self):
+#         ret = super()._get_torch_save_params()
+#         # print(1)
+#         return (['policy'], [])
 
-    def train(self, gradient_steps: int, batch_size: int = 100) -> None:
-        # Switch to train mode (this affects batch norm / dropout)
-        self.policy.set_training_mode(True)
-
-        # Update learning rate according to lr schedule
-        self._update_learning_rate([self.actor.optimizer, self.critic.optimizer])
-
-        stat_recorder = defaultdict(list)
-
-        for step in range(gradient_steps):
-            self._n_updates += 1
-            # Sample replay buffer
-            replay_data_agent = None
-            replay_data_human = None
-
-            if self.extra_config["adaptive_batch_size"]:
-                if self.replay_buffer.pos > 0 and self.human_data_buffer.pos > 0:
-                    replay_data_human = self.human_data_buffer.sample(
-                        int(batch_size), env=self._vec_normalize_env, return_all=True
-                    )
-
-                    human_data_size = len(replay_data_human.observations)
-                    human_data_size = max(1, self.extra_config["agent_data_ratio"] * human_data_size)
-                    human_data_size = int(human_data_size)
-
-                    replay_data_agent = self.replay_buffer.sample(human_data_size, env=self._vec_normalize_env)
-
-                elif self.human_data_buffer.pos > 0:
-                    replay_data_human = self.human_data_buffer.sample(
-                        batch_size, env=self._vec_normalize_env, return_all=True
-                    )
-                elif self.replay_buffer.pos > 0:
-                    replay_data_agent = self.replay_buffer.sample(batch_size, env=self._vec_normalize_env)
-                else:
-                    break
-
-            else:
-
-                if self.replay_buffer.pos > batch_size and self.human_data_buffer.pos > batch_size:
-                    replay_data_agent = self.replay_buffer.sample(int(batch_size), env=self._vec_normalize_env)
-                    replay_data_human = self.human_data_buffer.sample(int(batch_size), env=self._vec_normalize_env)
-                elif self.human_data_buffer.pos > batch_size:
-                    replay_data_human = self.human_data_buffer.sample(batch_size, env=self._vec_normalize_env)
-                elif self.replay_buffer.pos > batch_size:
-                    replay_data_agent = self.replay_buffer.sample(batch_size, env=self._vec_normalize_env)
-                else:
-                    break
-
-            current_q_novice_values = current_q_behavior_values = None
-            if replay_data_human is not None:
-                # Augment the reward / dones here.
-
-                current_q_behavior_values = self.critic(
-                    replay_data_human.observations, replay_data_human.actions_behavior
-                )
-                current_q_behavior_values = np.mean([q.mean().item() for q in current_q_behavior_values])
-                current_q_novice_values = self.critic(replay_data_human.observations, replay_data_human.actions_novice)
-                current_q_novice_values = np.mean([q.mean().item() for q in current_q_novice_values])
-
-                replay_data_human_positive = copy.deepcopy(replay_data_human)
-                replay_data_human_negative = replay_data_human
-
-                if self.extra_config["reward_0_for_positive"]:
-                    replay_data_human_positive.rewards.fill_(0)
-                else:
-
-                    if self.extra_config["use_weighted_reward"]:
-                        w = (replay_data_human_positive.takeover_log_prob)
-                        w = torch.exp(w)
-                        w = torch.clamp(w, 0, 1)
-                        w = 1 - w
-                        # w = (w - w.min()) / (w.max() - w.min())
-                        replay_data_human_positive.rewards.copy_(w)
-                    else:
-                        replay_data_human_positive.rewards.fill_(1)
-
-                if self.extra_config["reward_0_for_negative"]:
-                    replay_data_human_negative.rewards.fill_(0)
-                else:
-                    if self.extra_config["use_weighted_reward"]:
-                        # w = (-replay_data_human_negative.takeover_log_prob)
-                        # w = (w - w.min()) / (w.max() - w.min())
-                        w = (replay_data_human_positive.takeover_log_prob)
-                        w = torch.exp(w)
-                        w = torch.clamp(w, 0, 1)
-                        w = 1 - w
-                        replay_data_human_negative.rewards.copy_(-w)
-                    else:
-                        replay_data_human_negative.rewards.fill_(-1)
-
-                replay_data_human_negative.actions_behavior.copy_(replay_data_human_negative.actions_novice)
-
-                if self.extra_config["no_done_for_negative"]:
-                    pass
-                else:
-                    replay_data_human_negative.dones.fill_(1)
-
-                if self.extra_config["no_done_for_positive"]:
-                    pass
-                else:
-                    replay_data_human_positive.dones.fill_(1)
-                if self.extra_config["remove_negative"]:
-                    replay_data_human = replay_data_human_positive
-                else:
-                    replay_data_human = concat_samples(replay_data_human_positive, replay_data_human_negative)
-
-            if self.extra_config["reward_1_for_all"]:
-                if replay_data_agent is not None:
-                    replay_data_agent.rewards.fill_(1)
-
-            if replay_data_human is not None and replay_data_agent is None:
-                replay_data = replay_data_human
-            elif replay_data_human is None and replay_data_agent is not None:
-                replay_data = replay_data_agent
-            else:
-                replay_data = concat_samples(replay_data_agent, replay_data_human)
-
-            if self.extra_config["reward_n2_for_intervention"]:
-                replay_data.rewards[replay_data.next_intervention_start.bool()] = -2
-
-            with th.no_grad():
-                # Select action according to policy and add clipped noise
-                noise = replay_data.actions_behavior.clone().data.normal_(0, self.target_policy_noise)
-                noise = noise.clamp(-self.target_noise_clip, self.target_noise_clip)
-                next_actions = (self.actor_target(replay_data.next_observations) + noise).clamp(-1, 1)
-
-                # Compute the next Q-values: min over all critics targets
-                next_q_values = th.cat(self.critic_target(replay_data.next_observations, next_actions), dim=1)
-                next_q_values, _ = th.min(next_q_values, dim=1, keepdim=True)
-
-                # PZH NOTE: For Early Stop PVP, we can consider the environments dones when human involved.
-                # and at this moment an instant reward +1 or -1 is given.
-                target_q_values = replay_data.rewards + (1 - replay_data.dones) * self.gamma * next_q_values
-
-            # print("BS: ", len(replay_data.observations))
-
-            # Get current Q-values estimates for each critic network
-            current_q_values = self.critic(replay_data.observations, replay_data.actions_behavior)
-
-            # Compute critic loss
-            critic_loss = sum([F.mse_loss(current_q, target_q_values) for current_q in current_q_values])
-            # critic_losses.append(critic_loss.item())
-
-            stat_recorder["q_value_behavior"].append(
-                current_q_behavior_values if current_q_behavior_values is not None else float("nan")
-            )
-            stat_recorder["q_value_novice"].append(
-                current_q_novice_values if current_q_novice_values is not None else float("nan")
-            )
-
-            stat_recorder["q_value"].append(current_q_values[0].mean().item())
-
-            # Optimize the critics
-            self.critic.optimizer.zero_grad()
-            critic_loss.backward()
-            self.critic.optimizer.step()
-            self.logger.record("train/critic_loss", critic_loss.item())
-
-            # Delayed policy updates
-            if self._n_updates % self.policy_delay == 0:
-                # Compute actor loss
-                actor_loss = -self.critic.q1_forward(replay_data.observations, self.actor(replay_data.observations
-                                                                                          )).mean()
-
-                if self.extra_config["add_bc_loss"] and replay_data_human.dones.shape[0] > 0:
-                    bc_loss = F.mse_loss(replay_data_human.actions_behavior, self.actor(replay_data_human.observations))
-                    actor_loss += bc_loss
-
-                # Optimize the actor
-                self.actor.optimizer.zero_grad()
-                actor_loss.backward()
-                self.actor.optimizer.step()
-                self.logger.record("train/actor_loss", actor_loss.item())
-
-                polyak_update(self.critic.parameters(), self.critic_target.parameters(), self.tau)
-                polyak_update(self.actor.parameters(), self.actor_target.parameters(), self.tau)
-
-                self.actor_update_count += 1
-                # print("Actor update count: ", self.actor_update_count)
-
-        self.logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
-        for key, values in stat_recorder.items():
-            self.logger.record("train/{}".format(key), np.mean(values))
+#     def _setup_model(self) -> None:
+#         super()._setup_model()
+#         self.human_data_buffer = HACOReplayBuffer(
+#             self.buffer_size,
+#             self.observation_space,
+#             self.action_space,
+#             self.device,
+#             n_envs=self.n_envs,
+#             optimize_memory_usage=self.optimize_memory_usage,
+#             **self.replay_buffer_kwargs
+#         )
+#         # self.human_data_buffer

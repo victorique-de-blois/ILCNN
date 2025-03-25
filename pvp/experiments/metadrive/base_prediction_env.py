@@ -208,7 +208,7 @@ class BasePredictionEnv(SafeMetaDriveEnv):
             
             if self.config["use_discrete"]:
                 action = self.discrete_to_continuous(action)
-
+            actions = self._preprocess_actions(action) 
             #actions = self._preprocess_actions(action) 
             dt = self.config["physics_world_step_size"] * self.config["decision_repeat"]
             self.vehicle.before_step(action)
@@ -244,7 +244,7 @@ class BasePredictionEnv(SafeMetaDriveEnv):
             new_position = [new_x, new_y]
             new_velocity = [new_speed * math.cos(new_heading), new_speed * math.sin(new_heading)]
 
-            self.set_position(new_position)
+            self.vehicle.set_position(new_position)
             self.vehicle.set_heading_theta(new_heading)
             self.vehicle.set_velocity(new_velocity)
             self.vehicle.navigation.update_localization(self.vehicle)
@@ -270,11 +270,16 @@ class BasePredictionEnv(SafeMetaDriveEnv):
             
             if d:
                 failure = (r < 0)
+                if r < 0:
+                    total_reward = -100
                 break
         
         self.set_state(saved_state)
         
         failure = failure or (total_reward <= 10) #CHY: Failure if too slow.
+        
+        if total_reward <= 10:
+            total_reward = -100
         info["all_states"] = all_states
         info["failure"] = failure
         info["total_reward"] = total_reward
