@@ -244,7 +244,7 @@ class BasePredictionEnv(SafeMetaDriveEnv):
             new_position = [new_x, new_y]
             new_velocity = [new_speed * math.cos(new_heading), new_speed * math.sin(new_heading)]
 
-            self.vehicle.set_position(new_position)
+            self.set_position(new_position)
             self.vehicle.set_heading_theta(new_heading)
             self.vehicle.set_velocity(new_velocity)
             self.vehicle.navigation.update_localization(self.vehicle)

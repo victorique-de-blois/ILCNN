@@ -135,13 +135,6 @@ class FakeHumanEnv(HumanInTheLoopEnv):
     def discrete_to_continuous(self, a):
         continuous_action = self._actions[a.astype(int)]
         return continuous_action
-    def get_state(self) -> dict:
-        import copy
-        state = copy.deepcopy(self.vehicle.get_state())
-        return copy.deepcopy(state)
-
-    def set_state(self, state: dict):
-        self.vehicle.set_state(state)
 
     def decide_takeover(self, obs, future_steps_predict):
         predicted_traj_real, info_real = self.predict_agent_future_trajectory(obs, future_steps_predict)
