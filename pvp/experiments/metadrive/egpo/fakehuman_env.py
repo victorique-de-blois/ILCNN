@@ -84,13 +84,9 @@ class FakeHumanEnv(HumanInTheLoopEnv):
     last_takeover = None
     last_obs = None
     expert = None
-    pending_human_traj = []
-    pending_agent_traj = []
-    etakeover = False
     from collections import deque 
     advantages = deque(maxlen = 200)
     drawn_points = []
-    delaytake = 0
     
     def __init__(self, config):
         super(FakeHumanEnv, self).__init__(config)
@@ -129,13 +125,12 @@ class FakeHumanEnv(HumanInTheLoopEnv):
                 "future_steps": 20,
                 "takeover_see": 20,
                 "stop_freq": 10,
-                "takeover_delay": 0,
                 "img_future_steps": 1,
                 "stop_img_samples": 3, 
                 "future_steps_predict": -1,
                 "update_future_freq": -1,
                 "future_steps_preference": -1,
-                "expert_noise": -1,
+                "expert_noise": 0,
             }
         )
         return config
@@ -164,16 +159,13 @@ class FakeHumanEnv(HumanInTheLoopEnv):
             actions = self.discrete_to_continuous(actions)
 
         self.agent_action = copy.copy(actions)
-        self.b_action = copy.copy(actions)
         self.last_takeover = self.takeover
         
         future_steps = self.config["future_steps"]
         stop_freq = self.config["stop_freq"]
-        
-        img_future_steps = self.config["img_future_steps"]
         stop_img_samples = self.config["stop_img_samples"]
+        expert_noise_bound = self.config["expert_noise"]
         
-        self.human_traj = []
         if self.expert is None:
                 global _expert
                 self.expert = _expert
@@ -183,63 +175,20 @@ class FakeHumanEnv(HumanInTheLoopEnv):
             distribution = self.expert.get_distribution(last_obs)
             log_prob = distribution.log_prob(torch.from_numpy(actions).to(last_obs.device))
             action_prob = log_prob.exp().detach().cpu().numpy()
-
-            if self.config["expert_deterministic"]:
-                expert_action = distribution.mode().detach().cpu().numpy()
-            else:
-                expert_action = distribution.sample().detach().cpu().numpy()
-
-            assert expert_action.shape[0] == action_prob.shape[0] == 1
             action_prob = action_prob[0]
             expert_action, _  = self.expert.predict(self.last_obs, deterministic=True)
-            enoise = np.random.randn(2) * 0.4
-            
-            expert_action_clip = np.clip(enoise + expert_action, self.action_space.low, self.action_space.high)
+            enoise = np.random.randn(2) * expert_noise_bound
+            expert_action = np.clip(enoise + expert_action, self.action_space.low, self.action_space.high)
         
-        if (self.total_steps % stop_freq == 0) or self.last_takeover:
-            # predicted_traj_exp, acprob_exp, total_reward_exp, total_advantage_exp = self._predict_agent_future_trajectory(self.last_obs, future_steps, use_exp=expert_action_clip)
             
-            predicted_traj_exp, info1 = self.predict_agent_future_trajectory(self.last_obs, future_steps, action_behavior=expert_action_clip)
-            total_reward_exp = info1["total_reward"]
-            
-            # predicted_traj, acprob, total_reward, total_advantage, all_states = self._predict_agent_future_trajectory(self.last_obs, future_steps, realmode=False, return_all_states=True)
-            
-            predicted_traj, info2 = self.predict_agent_future_trajectory(self.last_obs, future_steps, action_behavior=self.agent_action.copy())
-            total_reward = info2["total_reward"]
-            
-            # predicted_traj_real, acprob_real, total_reward_real, total_advantage_real = self._predict_agent_future_trajectory(self.last_obs, future_steps, realmode=True)
-            
+        if (self.total_steps % stop_freq == 0):
             predicted_traj_real, info3 = self.predict_agent_future_trajectory(self.last_obs, future_steps)
             total_reward_real = info3["total_reward"]
+            self.takeover = total_reward_real < 0
+
+        if self.takeover:
+            predicted_traj, info2 = self.predict_agent_future_trajectory(self.last_obs, future_steps, action_behavior=self.agent_action.copy())
             
-            
-            advantage = total_reward_exp - 0
-            self.advantage = 0 - total_reward_exp
-            self.total_r = total_reward
-            if len(self.advantages) < 1 or total_reward_real < 0:
-                self.delaytake = self.config["takeover_delay"] #max(0, min(10, len(predicted_traj) - 1))
-                self.etakeover = True
-                if len(predicted_traj_real) == future_steps:
-                    self.advantages.append(advantage)
-            else:
-                q = np.quantile(list(self.advantages), self.config["free_level"])
-                # self.etakeover = (advantage > q)
-                # if advantage > q:
-                #     self.etakeover = True
-                if (self.total_steps % stop_freq == 0):
-                    self.etakeover = False
-                self.advantages.append(advantage)
-        else:
-            predicted_traj = []
-            
-            #predicted_traj, acprob, total_reward, total_advantage = self._predict_agent_future_trajectory(self.last_obs, future_steps)
-            
-        etakeover = self.etakeover
-        
-        if self.delaytake  > 0:
-            self.delaytake -= 1
-        if len(predicted_traj) <= 5:
-            self.delaytake = 0
         # ===== Get expert action and determine whether to take over! =====
         points, colors = [], []
         if self.config["disable_expert"]:
@@ -247,111 +196,30 @@ class FakeHumanEnv(HumanInTheLoopEnv):
 
         else:
 
-            if etakeover:
-
-                # print(f"Action probability: {action_prob}, agent action: {actions}, expert action: {expert_action},")
-
+            if self.takeover:
                 if self.config["use_discrete"]:
                     expert_action = self.continuous_to_discrete(expert_action)
                     expert_action = self.discrete_to_continuous(expert_action)
-                if self.delaytake == 0:
-                    actions = expert_action
-                self.b_action = copy.deepcopy(expert_action)
+                actions = expert_action
                 self.takeover = True
                 
                 drawer = self.drawer 
                 if True:
-                    
-                    for npp in self.drawn_points:
-                        npp.detachNode()
-                        self.drawer._dying_points.append(npp)
-                    self.drawn_points = []
-                    for j in range(0, len(predicted_traj_exp), 1):
-                        points.append((predicted_traj_exp[j]["next_pos"][0], predicted_traj_exp[j]["next_pos"][1], 0.5)) # define line 1 for test
-                        color=(0, 0, 1)
-                        colors.append(np.clip(np.array([*color,1]), 0., 1.0))
-                        
                     for sti in range(min(len(predicted_traj) - 1, stop_img_samples)):
-                        # predicted_traj_exp_2, acprob_exp, total_reward_exp, total_advantage_exp = self._predict_agent_future_trajectory(predicted_traj[sti]["obs"], img_future_steps, use_exp=self.b_action)
                         dic = {
                             "obs": predicted_traj[sti]["obs"].copy(),
-                            "action": self.b_action.copy(),
+                            "action": expert_action.copy(),
                             "next_obs": predicted_traj[sti]["obs"].copy(),
                             "done": False,
                         }
                         predicted_traj_exp_2 = [dic].copy()
                         if hasattr(self, "model") and hasattr(self.model, "imagreplay_buffer"):
                             self.model.imagreplay_buffer.add(predicted_traj_exp_2, predicted_traj[sti+1:])
-                        if self.config["use_render"]:
-                            for j in range(0, len(predicted_traj_exp_2), 1):
-                                points.append((predicted_traj_exp_2[j]["next_pos"][0], predicted_traj_exp_2[j]["next_pos"][1], 0.5)) # define line 1 for test
-                                color=(0, 0, 0.5)
-                                colors.append(np.clip(np.array([*color,1]), 0., 1.0))
-                    if self.config["use_render"]:   
-                        self.drawn_points = self.drawn_points + drawer.draw_points(points, colors) 
             else:
                 self.takeover = False
-            # print(f"Action probability: {action_prob:.3f}, agent action: {actions}, expert action: {expert_action}, takeover: {self.takeover}")
-        if self.config["use_render"] and (len(predicted_traj) > 0):
-            drawer = self.drawer 
-            if not etakeover:
-                for npp in self.drawn_points:
-                        npp.detachNode()
-                        self.drawer._dying_points.append(npp)
-                self.drawn_points = []
-            points, colors = [], []
-            for j in range(len(predicted_traj)):
-                points.append((predicted_traj[j]["next_pos"][0], predicted_traj[j]["next_pos"][1], 0.5)) # define line 1 for test
-                color=(self.takeover,1 - self.takeover,0)
-                colors.append(np.clip(np.array([*color,1]), 0., 1.0))
-            self.drawn_points = self.drawn_points + drawer.draw_points(points, colors) # draw points
-        # if self.config["use_render"] and (predicted_traj_exp is not None) and (len(predicted_traj_exp) > 0):
-        #     if hasattr(self,"drawer"):
-        #         drawer = self.drawer # create a point drawer
-        #     else:
-        #         self.drawer = self.engine.make_point_drawer(scale=3)
-        #         drawer = self.drawer 
-        #     points, colors = [], []
-        #     for j in range(len(predicted_traj_exp)):
-        #         points.append((predicted_traj_exp[j]["next_pos"][0], predicted_traj_exp[j]["next_pos"][1], 0.5)) # define line 1 for test
-        #         color=(0, 0, 1)
-        #         colors.append(np.clip(np.array([*color,1]), 0., 1.0))
-        #     self.drawn_points = self.drawn_points + drawer.draw_points(points, colors) # draw points
-        if self.takeover:
             
-            self.pending_agent_traj.append(predicted_traj)
-        else:
-            predicted_traj = []
-        
-
-            
-        self.vehicle.real = True
         last_o = self.last_obs.copy()
         o, r, d, i = super(HumanInTheLoopEnv, self).step(actions)
-        
-        
-        if self.takeover:
-            self.pending_human_traj.append(self.human_traj)
-            for lst in self.pending_human_traj:
-                if len(lst) < future_steps:
-                    lst.append({
-                        "obs": last_o.copy(),
-                        "action": expert_action_clip.copy(),
-                        "next_obs": o.copy(),
-                        "reward": r,
-                        "done": d,
-                        "next_pos": copy.deepcopy(self.vehicle.position),
-                        "action_exp": expert_action_clip.copy(),
-                        "action_nov": self.agent_action.copy(),
-                    })
-        else:
-            if hasattr(self, "model"):
-                assert len(self.pending_agent_traj) == len(self.pending_human_traj)
-                for step in range(len(self.pending_agent_traj)):
-                    if len(self.pending_agent_traj[step]) > 0 and hasattr(self.model, "prefreplay_buffer"):
-                        self.model.prefreplay_buffer.add(self.pending_human_traj[step], self.pending_agent_traj[step])
-            self.pending_agent_traj = []
-            self.pending_human_traj = []
         
         self.vehicle.real = False
         position, velocity, speed, heading = copy.copy(self.vehicle.position), copy.copy(self.vehicle.velocity), copy.copy(self.vehicle.speed), copy.copy(self.vehicle.heading_theta)
@@ -372,14 +240,11 @@ class FakeHumanEnv(HumanInTheLoopEnv):
                     # "Total Time": time.strftime("%M:%S", time.gmtime(time.time() - self.start_time)),
                     "Takeover Rate": "{:.2f}%".format(np.mean(np.array(self.takeover_recorder) * 100)),
                     "Pause": "Press E",
-                    "advantage": self.advantage,
-                    "rewardtogo": self.total_r,
                 }
             )
 
         assert i["takeover"] == self.takeover
 
-        i["raw_action"] = copy.deepcopy(self.b_action)
         if self.config["use_discrete"]:
             i["raw_action"] = self.continuous_to_discrete(i["raw_action"])
         return o, r, d, i
@@ -418,14 +283,6 @@ class FakeHumanEnv(HumanInTheLoopEnv):
                 
         self.last_obs = o
         self.last_takeover = False
-        self.etakeover = False
-        if hasattr(self, "model"):
-            for step in range(len(self.pending_agent_traj)):
-                if len(self.pending_agent_traj[step]) > 0 and hasattr(self.model, "prefreplay_buffer"):
-                    self.model.prefreplay_buffer.add(self.pending_human_traj[step], self.pending_agent_traj[step])
-                
-        self.pending_human_traj = []
-        self.pending_agent_traj = []
         for npp in self.drawn_points:
             npp.detachNode()
             self.drawer._dying_points.append(npp)
