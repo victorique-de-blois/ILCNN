@@ -25,7 +25,7 @@ if __name__ == '__main__':
     parser.add_argument("--save_freq", default=2000, type=int)
     parser.add_argument("--seed", default=0, type=int, help="The random seed.")
     parser.add_argument("--wandb", action="store_true", help="Set to True to upload stats to wandb.")
-    parser.add_argument("--wandb_project", type=str, default="fakepos", help="The project name for wandb.")
+    parser.add_argument("--wandb_project", type=str, default="HinLoopPref", help="The project name for wandb.")
     parser.add_argument("--wandb_team", type=str, default="victorique", help="The team name for wandb.")
     parser.add_argument("--log_dir", type=str, default=FOLDER_PATH.parent.parent, help="Folder to store the logs.")
     parser.add_argument("--bc_loss_weight", type=float, default=0.0)
@@ -34,12 +34,12 @@ if __name__ == '__main__':
     parser.add_argument("--adaptive_batch_size", default="False", type=str)
     parser.add_argument("--only_bc_loss", default="False", type=str)
     parser.add_argument("--ckpt", default="", type=str)
-    parser.add_argument("--policy_delay", default=1, type=int)
+    parser.add_argument("--policy_delay", default=2, type=int)
     parser.add_argument("--future_steps_predict", default=20, type=int)
     parser.add_argument("--update_future_freq", default=10, type=int)
     parser.add_argument("--future_steps_preference", default=3, type=int)
-    parser.add_argument("--expert_noise", default=0.4, type=float)
-    parser.add_argument("--simple_batch", default="False", type=str)
+    parser.add_argument("--expert_noise", default=0, type=float)
+    parser.add_argument("--simple_batch", default="True", type=str)
     parser.add_argument("--toy_env", action="store_true", help="Whether to use a toy environment.")
     
     args = parser.parse_args()
@@ -123,6 +123,7 @@ if __name__ == '__main__':
             verbose=2,
             seed=seed,
             device="auto",
+            gradient_steps=2,
         ),
 
         # Experiment log
