@@ -167,82 +167,34 @@ class PrefReplayBuffer(ReplayBuffer):
         # see https://github.com/DLR-RM/stable-baselines3/issues/284
         self.handle_timeout_termination = handle_timeout_termination
         self.timeouts = np.zeros((self.buffer_size, self.n_envs), dtype=np.float32)
-
-        # if psutil is not None:
-        #     obs_nbytes = 0
-        #     for _, obs in self.observations.items():
-        #         obs_nbytes += obs.nbytes
-
-        #     total_memory_usage = obs_nbytes + self.actions_behavior.nbytes + self.rewards.nbytes + self.dones.nbytes
-        #     if self.next_observations is not None:
-        #         next_obs_nbytes = 0
-        #         for _, obs in self.observations.items():
-        #             next_obs_nbytes += obs.nbytes
-        #         total_memory_usage += next_obs_nbytes
-
-        #     if total_memory_usage > mem_available:
-        #         # Convert to GB
-        #         total_memory_usage /= 1e9
-        #         mem_available /= 1e9
-        #         warnings.warn(
-        #             "This system does not have apparently enough memory to store the complete "
-        #             f"replay buffer {total_memory_usage:.2f}GB > {mem_available:.2f}GB"
-        #         )
     def add(
         self,
         pos_traj: List,
         neg_traj: List,
-        # obs: Dict[str, np.ndarray],
-        # next_obs: Dict[str, np.ndarray],
-        # action: np.ndarray,
-        # reward: np.ndarray,
-        # done: np.ndarray,
-        # infos: List[Dict[str, Any]],
     ) -> None:
-        
         l = min(len(pos_traj), len(neg_traj))
         for step in range(self.future_steps):
             if step >= l:
-                self.mask[self.pos][step] = 0
-                self.pos_dones[self.pos][step] = 1
+                break
             else:
-                self.mask[self.pos][step] = 1
-                self.pos_dones[self.pos][step] = pos_traj[step]["done"]
-                obs, action, next_obs = pos_traj[step]["obs"], pos_traj[step]["action"], pos_traj[step]["next_obs"]
+                obs, action = pos_traj[step]["obs"], pos_traj[step]["action"]
                 if self._fake_dict_obs:
                     obs = {"default": obs}
-                    next_obs = {"default": next_obs}
                 for key in self.pos_observations.keys():
                     self.pos_observations[key][self.pos][step] = np.array(obs[key]).copy()
-                    self.pos_next_observations[key][self.pos][step] = np.array(next_obs[key]).copy()
                 
                 self.pos_actions[self.pos][step] = np.array(action).copy().reshape(self.pos_actions[self.pos][step].shape)
-                
-                # action_exp, action_nov = pos_traj[step]["action_exp"], pos_traj[step]["action_nov"]
-                # self.pos_actions_exp[self.pos][step] = np.array(action_exp).copy().reshape(self.pos_actions_exp[self.pos][step].shape)
-                # self.pos_actions_nov[self.pos][step] = np.array(action_nov).copy().reshape(self.pos_actions_nov[self.pos][step].shape)
-            
         for step in range(self.future_steps):
             if step >= l:
-                self.mask[self.pos][step] = 0
-                self.neg_dones[self.pos][step] = 1
+                break
             else:
-                self.mask[self.pos][step] = 1
-                self.neg_dones[self.pos][step] = neg_traj[step]["done"]
-                obs, action, next_obs = neg_traj[step]["obs"], neg_traj[step]["action"], neg_traj[step]["next_obs"]
+                obs, action = neg_traj[step]["obs"], neg_traj[step]["action"]
                 if self._fake_dict_obs:
                     obs = {"default": obs}
-                    next_obs = {"default": next_obs}
                 for key in self.neg_observations.keys():
                     self.neg_observations[key][self.pos][step] = np.array(obs[key]).copy()
-                    self.neg_next_observations[key][self.pos][step] = np.array(next_obs[key]).copy()
                 
                 self.neg_actions[self.pos][step] = np.array(action).copy().reshape(self.neg_actions[self.pos][step].shape)
-                
-        #         action_exp, action_nov = neg_traj[step]["action_exp"], neg_traj[step]["action_nov"]
-        #         self.neg_actions_exp[self.pos][step] = np.array(action_exp).copy().reshape(self.neg_actions_exp[self.pos][step].shape)
-        #         self.neg_actions_nov[self.pos][step] = np.array(action_nov).copy().reshape(self.neg_actions_nov[self.pos][step].shape)
-        # # behavior_actions = np.array([step["raw_action"] for step in infos]).copy()
         
         self.pos += 1
         if self.pos == self.buffer_size:

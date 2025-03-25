@@ -116,7 +116,6 @@ class FakeHumanEnv(HumanInTheLoopEnv):
             {
                 "use_discrete": False,
                 "disable_expert": False,
-
                 "agent_policy": EnvInputPolicy,
                 "free_level": 0.9,
                 "manual_control": False,
@@ -125,11 +124,7 @@ class FakeHumanEnv(HumanInTheLoopEnv):
                 "future_steps": 20,
                 "takeover_see": 20,
                 "stop_freq": 10,
-                "img_future_steps": 1,
                 "stop_img_samples": 3, 
-                "future_steps_predict": -1,
-                "update_future_freq": -1,
-                "future_steps_preference": -1,
                 "expert_noise": 0,
             }
         )
@@ -151,6 +146,23 @@ class FakeHumanEnv(HumanInTheLoopEnv):
     def set_state(self, state: dict):
         self.vehicle.set_state(state)
 
+    def decide_takeover(self, obs, future_steps_predict):
+        predicted_traj_real, info_real = self.predict_agent_future_trajectory(obs, future_steps_predict)
+        assert info_real["failure"] == (info_real["total_reward"] < 0)
+        return info_real["failure"]
+    
+    def store_preference_pairs(self, predicted_traj, future_steps_preference, expert_action):
+        for step in range(min(len(predicted_traj) - 1, future_steps_preference)):
+            step_info = {
+                "obs": predicted_traj[step]["obs"].copy(),
+                "action": expert_action.copy(),
+                "next_obs": predicted_traj[step]["obs"].copy(),
+                "done": False,
+            }
+            positive_traj = [step_info].copy()
+            negative_traj = predicted_traj[step+1:]
+            self.model.imagreplay_buffer.add(positive_traj, negative_traj)
+    
     def step(self, actions):
         """Compared to the original one, we call expert_action_prob here and implement a takeover function."""
         actions = np.asarray(actions).astype(np.float32)
@@ -170,59 +182,30 @@ class FakeHumanEnv(HumanInTheLoopEnv):
                 global _expert
                 self.expert = _expert
         
-        if True:
-            last_obs, _ = self.expert.obs_to_tensor(self.last_obs)
-            distribution = self.expert.get_distribution(last_obs)
-            log_prob = distribution.log_prob(torch.from_numpy(actions).to(last_obs.device))
-            action_prob = log_prob.exp().detach().cpu().numpy()
-            action_prob = action_prob[0]
-            expert_action, _  = self.expert.predict(self.last_obs, deterministic=True)
-            enoise = np.random.randn(2) * expert_noise_bound
-            expert_action = np.clip(enoise + expert_action, self.action_space.low, self.action_space.high)
+        last_obs, _ = self.expert.obs_to_tensor(self.last_obs)
+        distribution = self.expert.get_distribution(last_obs)
+        log_prob = distribution.log_prob(torch.from_numpy(actions).to(last_obs.device))
+        action_prob = log_prob.exp().detach().cpu().numpy()
+        action_prob = action_prob[0]
+        expert_action, _  = self.expert.predict(self.last_obs, deterministic=True)
+        enoise = np.random.randn(2) * expert_noise_bound
+        expert_action = np.clip(enoise + expert_action, self.action_space.low, self.action_space.high)
         
-            
         if (self.total_steps % stop_freq == 0):
-            predicted_traj_real, info3 = self.predict_agent_future_trajectory(self.last_obs, future_steps)
-            total_reward_real = info3["total_reward"]
-            self.takeover = total_reward_real < 0
+            self.takeover = self.decide_takeover(self.last_obs, future_steps)
 
         if self.takeover:
             predicted_traj, info2 = self.predict_agent_future_trajectory(self.last_obs, future_steps, action_behavior=self.agent_action.copy())
+            if self.config["use_discrete"]:
+                expert_action = self.continuous_to_discrete(expert_action)
+                expert_action = self.discrete_to_continuous(expert_action)
+            actions = expert_action
+            if hasattr(self, "model") and hasattr(self.model, "imagreplay_buffer"):
+                self.store_preference_pairs(predicted_traj, stop_img_samples, expert_action.copy())
             
-        # ===== Get expert action and determine whether to take over! =====
-        points, colors = [], []
-        if self.config["disable_expert"]:
-            pass
-
-        else:
-
-            if self.takeover:
-                if self.config["use_discrete"]:
-                    expert_action = self.continuous_to_discrete(expert_action)
-                    expert_action = self.discrete_to_continuous(expert_action)
-                actions = expert_action
-                self.takeover = True
-                
-                drawer = self.drawer 
-                if True:
-                    for sti in range(min(len(predicted_traj) - 1, stop_img_samples)):
-                        dic = {
-                            "obs": predicted_traj[sti]["obs"].copy(),
-                            "action": expert_action.copy(),
-                            "next_obs": predicted_traj[sti]["obs"].copy(),
-                            "done": False,
-                        }
-                        predicted_traj_exp_2 = [dic].copy()
-                        if hasattr(self, "model") and hasattr(self.model, "imagreplay_buffer"):
-                            self.model.imagreplay_buffer.add(predicted_traj_exp_2, predicted_traj[sti+1:])
-            else:
-                self.takeover = False
-            
-        last_o = self.last_obs.copy()
         o, r, d, i = super(HumanInTheLoopEnv, self).step(actions)
         
         self.vehicle.real = False
-        position, velocity, speed, heading = copy.copy(self.vehicle.position), copy.copy(self.vehicle.velocity), copy.copy(self.vehicle.speed), copy.copy(self.vehicle.heading_theta)
         self.takeover_recorder.append(self.takeover)
         self.total_steps += 1
 
@@ -288,146 +271,21 @@ class FakeHumanEnv(HumanInTheLoopEnv):
             self.drawer._dying_points.append(npp)
         self.drawn_points = []
         return o, info
-    def _predict_agent_future_trajectory(self, current_obs, n_steps, use_exp = None,  return_all_states = False, realmode= False):
-        all_states = []
-        saved_state = self.get_state()
-        traj = []
-        obs = current_obs
-        lstprob = []
-        total_reward = 0
-        
-        total_advantage = 0
-        for step in range(n_steps):
-            old_pos = copy.deepcopy(self.vehicle.position)
-            if use_exp is None:
-                action = self.agent_action
-                if realmode and hasattr(self, "model"):
-                     action, _ = self.model.policy.predict(obs, deterministic=True)
-            else:
-                action  = use_exp
-            if self.config["use_discrete"]:
-                action_cont = self.discrete_to_continuous(action)
-            else:
-                action_cont = action
-
-            self.engine.notrender = True
-            
-            actions = self._preprocess_actions(action_cont) 
-            r = 0
-            for rep in range(1):
-                dt = self.config["physics_world_step_size"] * self.config["decision_repeat"]
-
-                # 从 after_step 中读取更新后的物理量
-                self.vehicle.before_step(action_cont)
-                
-                params = self.vehicle.get_dynamics_parameters()
-                mass = params["mass"]
-                max_engine_force = params["max_engine_force"]
-                max_brake_force = params["max_brake_force"]
-
-                # 当前控制信号（假设 throttle_brake 范围在 [-1, 1]）
-                throttle = self.vehicle.throttle_brake
-                if throttle >= 0:
-                    # 如果车速超过最大速度，则不再施加正向加速
-                    if self.vehicle.speed >= self.vehicle.max_speed_m_s:
-                        a = 0.0
-                    else:
-                        engine_force = max_engine_force * throttle
-                        a = engine_force / mass * 4
-                else:
-                    brake_force = max_brake_force * abs(throttle)
-                    a = -brake_force / mass * 4
-
-                # 更新速度：采用简单的欧拉积分
-                new_speed = self.vehicle.speed + a * dt
-                # 保证速度不为负
-                new_speed = max(new_speed, 0.0)
-
-                step_info = self.vehicle.after_step()
-                #new_speed = step_info["velocity"]        # 车速（单位：m/s）
-                current_steering = self.vehicle.steering   
-                max_steering_rad = math.radians(self.vehicle.config["max_steering"])  # 如果配置是度
-
-                # 使用车辆动力学公式更新 heading（轴距 L 根据你的模型设定）
-                L = self.vehicle.FRONT_WHEELBASE + self.vehicle.REAR_WHEELBASE  # 轴距，需替换为实际值
-                new_heading = self.vehicle.heading_theta + (new_speed / L) * math.tan(current_steering * max_steering_rad) * dt
-
-                # 更新位置（假设 self.vehicle.position 是一个 2D 数组或列表）
-                new_x = self.vehicle.position[0] + new_speed * dt * math.cos(new_heading)
-                new_y = self.vehicle.position[1] + new_speed * dt * math.sin(new_heading)
-                new_position = [new_x, new_y]
-                new_velocity = [new_speed * math.cos(new_heading), new_speed * math.sin(new_heading)]
-
-                # 然后将这些状态更新回车辆
-                self.vehicle.set_position(new_position)
-                self.vehicle.set_heading_theta(new_heading)
-                self.vehicle.set_velocity(new_velocity)
-                self.vehicle.navigation.update_localization(self.vehicle)
-                r += self.reward_function('default_agent')[0]
-            # print("pred", self.vehicle.position)
-            del self.engine.notrender
-            #if step > 0:
-            total_reward += r
-            
-            if return_all_states:
-                all_states.append(self.get_state())
-            d = self.done_function('default_agent')[0]
-
-                        
-            last_obs, _ = self.expert.obs_to_tensor(obs)
-            distribution = self.expert.get_distribution(last_obs)
-            log_prob = distribution.log_prob(torch.from_numpy(action_cont).to(last_obs.device))
-            action_prob = log_prob.exp().detach().cpu().numpy()
-            action_prob = action_prob[0]
-            lstprob.append(action_prob)
-            expert_action, _ = self.expert.predict(obs, deterministic=True)
-            expert_action_clip = np.clip(expert_action, self.action_space.low, self.action_space.high)
-            actions_n, values_n, log_prob_n = self.expert(torch.Tensor(obs).to(self.expert.device).unsqueeze(0))
-            
-            new_obs = self.get_single_observation().observe(self.vehicle)
-            
-            traj.append({
-                "obs": obs.copy(),
-                "action": action_cont.copy(),
-                "reward": r,
-                "next_obs": new_obs.copy(),
-                "done": d,
-                "pos": old_pos,
-                "next_pos": copy.deepcopy(self.vehicle.position),
-                "action_exp": expert_action_clip.copy(),
-                "action_nov": action_cont.copy(),
-                "values_n": values_n.item(),
-            })
-            obs = new_obs.copy()
-            
-            actions_n, values_next, log_prob_n = self.expert(torch.Tensor(obs).to(self.expert.device).unsqueeze(0))
-            traj[-1]["advantage"] = r + 0.99 * values_n.item() - values_next.item()
-            
-            total_advantage += r + 0.99 * values_n.item() - values_next.item()
-            if d:
-                if r < 0:
-                    total_reward = -100
-                break
-        self.set_state(saved_state)
-        from pvp.sb3.common.utils import safe_mean
-        if total_reward > 10:
-            #total_reward += values_n.item()
-            pass
-        else:
-            total_reward = -100
-        if return_all_states:
-            return traj, safe_mean(lstprob[:self.config["takeover_see"]]), total_reward, total_advantage, all_states
-        
-        return traj, safe_mean(lstprob[:self.config["takeover_see"]]), total_reward, total_advantage
     
 
 if __name__ == "__main__":
-    env = FakeHumanEnv(dict(free_level=0.95, use_render=True, manual_control=False, future_steps=15, stop_freq = 5))
+    env = FakeHumanEnv(dict(use_render=True, num_scenarios=1, traffic_density=0))
     env.reset()
+    ss = 0
     while True:
-        _, _, done, info = env.step([0, 0.1])
+        if ss < 10:
+            _, _, done, info = env.step([0, 1])
+        else:
+            _, _, done, info = env.step([0, 0.1])
+        ss += 1
         # done = tm or tc
-        #env.render(mode="topdown")
+        # env.render(mode="topdown")
         if done:
             print(info)
             env.reset()
+            ss = 0
