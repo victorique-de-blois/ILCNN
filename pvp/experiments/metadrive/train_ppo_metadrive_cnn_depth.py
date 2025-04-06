@@ -57,7 +57,7 @@ if __name__ == '__main__':
 
     # ===== Setup the config =====
     sensor_size = (84, 84) 
-    from metadrive.component.sensors.rgb_camera import RGBCamera
+    from metadrive.component.sensors.depth_camera import DepthCamera
     from pvp.sb3.sac.our_features_extractor import OurFeaturesExtractorCNN as OurFeaturesExtractor
     config = dict(
         # ===== Environment =====
@@ -68,7 +68,7 @@ if __name__ == '__main__':
             # window_size=(1600, 1100),
             image_observation=True, 
             vehicle_config=dict(image_source="rgb_camera"),
-            sensors={"rgb_camera": (RGBCamera, *sensor_size)},
+            sensors={"rgb_camera": (DepthCamera, *sensor_size)},
             stack_size=3,
             # num_scenarios=1,
             # traffic_density=0.0,
@@ -139,7 +139,7 @@ if __name__ == '__main__':
             horizon=1500,
             image_observation=True, 
             vehicle_config=dict(image_source="rgb_camera"),
-            sensors={"rgb_camera": (RGBCamera, *sensor_size)},
+            sensors={"rgb_camera": (DepthCamera, *sensor_size)},
             stack_size=3,
             # num_scenarios=1,
             # traffic_density=0.0,
