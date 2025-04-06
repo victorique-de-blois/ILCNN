@@ -70,11 +70,11 @@ if __name__ == '__main__':
             vehicle_config=dict(image_source="rgb_camera"),
             sensors={"rgb_camera": (RGBCamera, *sensor_size)},
             stack_size=3,
-            num_scenarios=1,
-            traffic_density=0.0,
-            map="COT"
+            # num_scenarios=1,
+            # traffic_density=0.0,
+            # map="COT"
         ),
-        num_train_envs=1,
+        num_train_envs=10,
 
         # ===== Training =====
         algo=dict(
@@ -141,9 +141,9 @@ if __name__ == '__main__':
             vehicle_config=dict(image_source="rgb_camera"),
             sensors={"rgb_camera": (RGBCamera, *sensor_size)},
             stack_size=3,
-            num_scenarios=1,
-            traffic_density=0.0,
-            map="COT"
+            # num_scenarios=1,
+            # traffic_density=0.0,
+            # map="COT"
         )
         from pvp.experiments.metadrive.human_in_the_loop_env import HumanInTheLoopEnv
         from pvp.sb3.common.monitor import Monitor
@@ -151,7 +151,7 @@ if __name__ == '__main__':
         eval_env = Monitor(env=eval_env, filename=str(trial_dir))
         return eval_env
 
-    eval_env = SubprocVecEnv([_make_eval_env])
+    eval_env = SubprocVecEnv([_make_eval_env] * 5)
 
     # ===== Setup the callbacks =====
     save_freq = 1_0000  # Number of steps per model checkpoint
@@ -190,7 +190,7 @@ if __name__ == '__main__':
         # eval
         eval_env=eval_env,
         eval_freq=2000,
-        n_eval_episodes=10,
+        n_eval_episodes=50,
         eval_log_path=str(trial_dir),
 
         # logging
