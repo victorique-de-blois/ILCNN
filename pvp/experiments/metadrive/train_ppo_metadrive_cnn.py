@@ -74,7 +74,7 @@ if __name__ == '__main__':
             # traffic_density=0.0,
             # map="COT"
         ),
-        num_train_envs=10,
+        num_train_envs=50,
 
         # ===== Training =====
         algo=dict(
@@ -151,7 +151,7 @@ if __name__ == '__main__':
         eval_env = Monitor(env=eval_env, filename=str(trial_dir))
         return eval_env
 
-    eval_env = SubprocVecEnv([_make_eval_env] * 5)
+    eval_env = SubprocVecEnv([_make_eval_env] * 10)
 
     # ===== Setup the callbacks =====
     save_freq = 1_0000  # Number of steps per model checkpoint
