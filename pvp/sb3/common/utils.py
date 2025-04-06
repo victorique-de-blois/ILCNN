@@ -456,7 +456,11 @@ def obs_as_tensor(obs: Union[np.ndarray, Dict[Union[str, int], np.ndarray]],
     :return: PyTorch tensor of the observation on a desired device.
     """
     if isinstance(obs, np.ndarray):
-        return th.as_tensor(obs).to(device)
+        try:
+            return th.as_tensor(obs).to(device)
+        except:
+            obs = obs[0]
+            return {key: th.as_tensor(_obs).to(device) for (key, _obs) in obs.items()}
     elif isinstance(obs, dict):
         return {key: th.as_tensor(_obs).to(device) for (key, _obs) in obs.items()}
     else:

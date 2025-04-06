@@ -86,6 +86,9 @@ def evaluate_policy(
         actions, states = model.predict(
             observations, state=states, episode_start=episode_starts, deterministic=deterministic
         )
+        if actions.ndim == 1:
+            # convert to 2D array
+            actions = np.expand_dims(actions, axis=0)
         observations, rewards, dones, infos = env.step(actions)
         current_rewards += rewards
         current_lengths += 1

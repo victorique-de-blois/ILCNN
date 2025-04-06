@@ -720,7 +720,8 @@ class DictRolloutBuffer(RolloutBuffer):
         if len(log_prob.shape) == 0:
             # Reshape 0-d tensor to avoid error
             log_prob = log_prob.reshape(-1, 1)
-
+        obs = obs[0]
+        
         for key in self.observations.keys():
             obs_ = np.array(obs[key]).copy()
             # Reshape needed when using multiple envs with discrete observations

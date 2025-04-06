@@ -224,6 +224,8 @@ class BaseModel(nn.Module, ABC):
         :return: The observation as PyTorch tensor
             and whether the observation is vectorized or not
         """
+        if isinstance(observation, np.ndarray) and isinstance(observation[0], dict):
+            observation = observation[0]
         vectorized_env = False
         if isinstance(observation, dict):
             # need to copy the dict as the dict in VecFrameStack will become a torch tensor
