@@ -101,6 +101,7 @@ if __name__ == '__main__':
                 policy_kwargs=dict(
                     features_extractor_class=OurFeaturesExtractor,
                     features_extractor_kwargs=dict(features_dim=275),
+                    share_features_extractor=False, 
                     net_arch=[
                         256,
                     ]
@@ -162,7 +163,7 @@ if __name__ == '__main__':
     if config["env_config"]["use_render"]:
         eval_env, eval_freq = None, -1
     else:
-        eval_env, eval_freq = SubprocVecEnv([_make_eval_env]), 2000
+        eval_env, eval_freq = SubprocVecEnv([_make_eval_env] * 10), 1000
     def _make_train_env():
         # ===== Setup the training environment =====
         train_env = FakeHumanEnv(config=config["env_config"], )
@@ -170,7 +171,7 @@ if __name__ == '__main__':
         # Store all shared control data to the files.
         train_env = SharedControlMonitor(env=train_env, folder=trial_dir / "data", prefix=trial_name)
         return train_env
-    train_env = _make_train_env()
+    train_env = SubprocVecEnv([_make_train_env])
     config["algo"]["env"] = train_env
     assert config["algo"]["env"] is not None
 
@@ -213,7 +214,7 @@ if __name__ == '__main__':
         # eval
         eval_env=eval_env,
         eval_freq=eval_freq,
-        n_eval_episodes=50,
+        n_eval_episodes=10,
         eval_log_path=str(trial_dir),
 
         # logging

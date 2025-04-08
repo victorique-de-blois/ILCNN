@@ -225,7 +225,9 @@ class BaseModel(nn.Module, ABC):
             and whether the observation is vectorized or not
         """
         if isinstance(observation, np.ndarray) and isinstance(observation[0], dict):
-            observation = observation[0]
+            keys = observation[0].keys()  # Get the keys from the first dictionary
+            observation = {key: th.stack([th.as_tensor(d[key]) for d in observation]) for key in keys}
+
         vectorized_env = False
         if isinstance(observation, dict):
             # need to copy the dict as the dict in VecFrameStack will become a torch tensor

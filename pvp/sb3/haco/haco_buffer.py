@@ -308,7 +308,9 @@ class HACOReplayBuffer(ReplayBuffer):
         done: np.ndarray,
         infos: List[Dict[str, Any]],
     ) -> None:
-        # obs, next_obs = obs[0], next_obs[0]
+        keys = obs[0].keys()  # Get the keys from the first dictionary
+        obs = {key: th.stack([th.as_tensor(d[key]) for d in obs]) for key in keys}
+        next_obs = {key: th.stack([th.as_tensor(d[key]) for d in next_obs]) for key in keys}
 
         if infos[0]["takeover_start"] and self.discard_takeover_start:
             return
