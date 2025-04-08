@@ -308,6 +308,7 @@ class HACOReplayBuffer(ReplayBuffer):
         done: np.ndarray,
         infos: List[Dict[str, Any]],
     ) -> None:
+        # obs, next_obs = obs[0], next_obs[0]
 
         if infos[0]["takeover_start"] and self.discard_takeover_start:
             return

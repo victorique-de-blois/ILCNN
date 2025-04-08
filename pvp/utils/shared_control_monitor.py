@@ -67,6 +67,8 @@ class SharedControlMonitor(gym.Wrapper):
 
         assert 'raw_action' in info, info.keys()
         action_behavior = np.asarray(info['raw_action'])
+        if np.shape(action) != np.shape(action_behavior):
+            print(action, action_behavior)
         assert np.shape(action) == np.shape(action_behavior)
         self.data['action_agent'].append(action)
         self.data['action_behavior'].append(action_behavior)
