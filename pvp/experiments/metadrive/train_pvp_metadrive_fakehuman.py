@@ -24,8 +24,8 @@ if __name__ == '__main__':
     parser.add_argument("--save_freq", default=500, type=int)
     parser.add_argument("--seed", default=0, type=int, help="The random seed.")
     parser.add_argument("--wandb", action="store_true", help="Set to True to upload stats to wandb.")
-    parser.add_argument("--wandb_project", type=str, default="", help="The project name for wandb.")
-    parser.add_argument("--wandb_team", type=str, default="", help="The team name for wandb.")
+    parser.add_argument("--wandb_project", type=str, default="PVP_CNN", help="The project name for wandb.")
+    parser.add_argument("--wandb_team", type=str, default="victorique", help="The team name for wandb.")
     parser.add_argument("--log_dir", type=str, default="/home/caihy/pvp", help="Folder to store the logs.")
     parser.add_argument("--free_level", type=float, default=0.95)
     parser.add_argument("--bc_loss_weight", type=float, default=0.0)
@@ -35,6 +35,7 @@ if __name__ == '__main__':
     parser.add_argument("--only_bc_loss", default="False", type=str)
     parser.add_argument("--ckpt", default="", type=str)
     parser.add_argument("--simple_batch", default="True", type=str)
+    parser.add_argument("--toy_env", action="store_true", help="Whether to use a toy environment.")
     args = parser.parse_args()
 
     # ===== Set up some arguments =====
@@ -130,6 +131,14 @@ if __name__ == '__main__':
             trial_name=trial_name,
             log_dir=str(trial_dir)
     )
+    if args.toy_env:
+        config["env_config"].update(
+            # Here we set num_scenarios to 1, remove all traffic, and fix the map to be a very simple one.
+            num_scenarios=1,
+            traffic_density=0.0,
+            map="COT",
+            use_render=False
+        )
     # ===== Setup the config =====
     def _make_eval_env():
         from metadrive.component.sensors.rgb_camera import RGBCamera
