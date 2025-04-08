@@ -56,8 +56,8 @@ if __name__ == '__main__':
     print(f"We start logging training data into {trial_dir}")
 
     # ===== Setup the config =====
-    sensor_size = (180, 320) 
-    from metadrive.component.sensors.semantic_camera import SemanticCamera
+    sensor_size = (84, 84) 
+    from metadrive.component.sensors.depth_camera import DepthCamera
     from pvp.sb3.sac.our_features_extractor import OurFeaturesExtractorCNN as OurFeaturesExtractor
     config = dict(
         # ===== Environment =====
@@ -67,12 +67,12 @@ if __name__ == '__main__':
             # controller=control_device,
             # window_size=(1600, 1100),
             image_observation=True, 
-            vehicle_config=dict(image_source="semantic_camera"),
-            sensors={"semantic_camera": (SemanticCamera, *sensor_size)},
+            vehicle_config=dict(image_source="rgb_camera"),
+            sensors={"rgb_camera": (DepthCamera, *sensor_size)},
             stack_size=3,
-            num_scenarios=1,
-            traffic_density=0.0,
-            map="COT"
+            # num_scenarios=1,
+            # traffic_density=0.0,
+            # map="COT"
         ),
         num_train_envs=1,
 
@@ -83,13 +83,13 @@ if __name__ == '__main__':
                 features_extractor_class=OurFeaturesExtractor,
                 features_extractor_kwargs=dict(features_dim=275),
                 net_arch=[
-                    256, 256,
+                    256,
                 ]
             ),
             n_steps=512,  # n_steps * n_envs = total_batch_size
             n_epochs=20,
-            learning_rate=1e-4,
-            batch_size=512,
+            learning_rate=5e-5,
+            batch_size=256,
             clip_range=0.1,
             vf_coef=0.5,
             ent_coef=0.0,
@@ -135,15 +135,15 @@ if __name__ == '__main__':
         eval_env_config = dict(
             use_render=False,  # Open the interface
             manual_control=False,  # Allow receiving control signal from external device
-            # start_seed=0,
+            start_seed=1000,
             horizon=1500,
             image_observation=True, 
-            vehicle_config=dict(image_source="semantic_camera"),
-            sensors={"semantic_camera": (SemanticCamera, *sensor_size)},
+            vehicle_config=dict(image_source="rgb_camera"),
+            sensors={"rgb_camera": (DepthCamera, *sensor_size)},
             stack_size=3,
-            num_scenarios=1,
-            traffic_density=0.0,
-            map="COT"
+            # num_scenarios=1,
+            # traffic_density=0.0,
+            # map="COT"
         )
         from pvp.experiments.metadrive.human_in_the_loop_env import HumanInTheLoopEnv
         from pvp.sb3.common.monitor import Monitor
@@ -154,7 +154,7 @@ if __name__ == '__main__':
     eval_env = SubprocVecEnv([_make_eval_env])
 
     # ===== Setup the callbacks =====
-    save_freq = 2000  # Number of steps per model checkpoint
+    save_freq = 1000  # Number of steps per model checkpoint
     callbacks = [
         CheckpointCallback(name_prefix="rl_model", verbose=2, save_freq=save_freq, save_path=str(trial_dir / "models"))
     ]
@@ -183,7 +183,7 @@ if __name__ == '__main__':
     # ===== Launch training =====
     model.learn(
         # training
-        total_timesteps=20_000_000,
+        total_timesteps=10_0000,
         callback=callbacks,
         reset_num_timesteps=True,
 
