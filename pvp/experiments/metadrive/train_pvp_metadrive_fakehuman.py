@@ -3,10 +3,11 @@ import os
 import uuid
 from pathlib import Path
 
-from pvp.experiments.metadrive.egpo.fakehuman_env import FakeHumanEnv
+from pvp.experiments.metadrive.egpo.fakehuman_env_old import FakeHumanEnv
 from pvp.pvp_td3 import PVPTD3
 from pvp.sb3.common.callbacks import CallbackList, CheckpointCallback
 from pvp.sb3.common.monitor import Monitor
+from pvp.sb3.common.vec_env import DummyVecEnv
 from pvp.sb3.common.vec_env import SubprocVecEnv
 from pvp.sb3.common.wandb_callback import WandbCallback
 from pvp.sb3.haco import HACOReplayBuffer
@@ -15,6 +16,14 @@ from pvp.utils.shared_control_monitor import SharedControlMonitor
 from pvp.utils.utils import get_time_str
 import pathlib
 FOLDER_PATH = pathlib.Path(__file__).parent.parent
+
+os.environ["PYTHONUTF8"] = "on" 
+import sys
+import gymnasium  # 先导入 gymnasium 模块
+
+# 将 sys.modules 中的 "gym" 条目指向 gymnasium 模块
+sys.modules["gym"] = gymnasium
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -69,6 +78,11 @@ if __name__ == '__main__':
     print(f"We start logging training data into {trial_dir}")
 
     # ===== Setup the config =====
+    from metadrive.component.sensors.rgb_camera import RGBCamera
+    from pvp.sb3.sac.our_features_extractor import OurFeaturesExtractorCNN as OurFeaturesExtractor
+    
+    
+    sensor_size = (84, 84)  # The size of the RGB camera
     config = dict(
 
         # Environment config
@@ -82,10 +96,14 @@ if __name__ == '__main__':
 
             # FakeHumanEnv config:
             use_render=False,
-            future_steps_predict=args.future_steps_predict,
-            update_future_freq=args.update_future_freq,
-            future_steps_preference=args.future_steps_preference,
-            expert_noise=args.expert_noise,
+            # future_steps_predict=args.future_steps_predict,
+            # update_future_freq=args.update_future_freq,
+            # future_steps_preference=args.future_steps_preference,
+            # expert_noise=args.expert_noise,
+            image_observation=True, 
+            vehicle_config=dict(image_source="rgb_camera"),
+            sensors={"rgb_camera": (RGBCamera, *sensor_size)},
+            stack_size=3,
         ),
 
         # Algorithm config
@@ -106,7 +124,13 @@ if __name__ == '__main__':
             replay_buffer_kwargs=dict(
                 discard_reward=True,  # We run in reward-free manner!
             ),
-            policy_kwargs=dict(net_arch=[256, 256]),
+            policy_kwargs=dict(
+                features_extractor_class=OurFeaturesExtractor,
+                features_extractor_kwargs=dict(features_dim=275),
+                net_arch=[
+                    256,
+                ]
+            ),
             env=None,
             learning_rate=1e-4,
             q_value_bound=1,
@@ -139,7 +163,7 @@ if __name__ == '__main__':
             num_scenarios=1,
             traffic_density=0.0,
             map="COT",
-            use_render=True
+            use_render=False
         )
         
     # ===== Setup the training environment =====
@@ -154,11 +178,14 @@ if __name__ == '__main__':
     def _make_eval_env():
         eval_env_config = dict(
             use_render=False,  # Open the interface
-            manual_control=False,  # Allow receiving control signal from external device
             start_seed=1000,
             horizon=1500,
+            image_observation=True, 
+            vehicle_config=dict(image_source="rgb_camera"),
+            sensors={"rgb_camera": (RGBCamera, *sensor_size)},
+            stack_size=3,
         )
-        from pvp.experiments.metadrive.human_in_the_loop_env import HumanInTheLoopEnv
+        from pvp.experiments.metadrive.human_in_the_loop_env_old import HumanInTheLoopEnv
         from pvp.sb3.common.monitor import Monitor
         eval_env = HumanInTheLoopEnv(config=eval_env_config)
         eval_env = Monitor(env=eval_env, filename=str(trial_dir))
@@ -168,7 +195,7 @@ if __name__ == '__main__':
         eval_env, eval_freq = None, -1
     else:
         eval_env, eval_freq = SubprocVecEnv([_make_eval_env]), 2000
-
+    
     # ===== Setup the callbacks =====
     save_freq = args.save_freq  # Number of steps per model checkpoint
     callbacks = [

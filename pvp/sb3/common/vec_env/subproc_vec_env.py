@@ -93,7 +93,7 @@ class SubprocVecEnv(VecEnv):
             # but is more user friendly (does not require to wrap the code in
             # a `if __name__ == "__main__":`)
             forkserver_available = "forkserver" in mp.get_all_start_methods()
-            start_method = "forkserver" if forkserver_available else "spawn"
+            start_method = "spawn"
         ctx = mp.get_context(start_method)
 
         self.remotes, self.work_remotes = zip(*[ctx.Pipe() for _ in range(n_envs)])
