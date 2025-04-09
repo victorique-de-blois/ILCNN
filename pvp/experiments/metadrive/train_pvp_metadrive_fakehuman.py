@@ -3,7 +3,7 @@ import os
 import uuid
 from pathlib import Path
 
-from pvp.experiments.metadrive.egpo.fakehuman_env_old import FakeHumanEnv
+from pvp.experiments.metadrive.egpo.fakehuman_env import FakeHumanEnv
 from pvp.pvp_td3 import PVPTD3
 from pvp.sb3.common.callbacks import CallbackList, CheckpointCallback
 from pvp.sb3.common.monitor import Monitor
@@ -39,7 +39,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # ===== Set up some arguments =====
-    experiment_batch_name = "{}_freelevel{}".format(args.exp_name, args.free_level)
+    experiment_batch_name = "{}_RGBCNN".format(args.exp_name)
     seed = args.seed
     trial_name = "{}_{}_{}".format(experiment_batch_name, get_time_str(), uuid.uuid4().hex[:8])
     print("Trial name is set to: ", trial_name)
@@ -74,7 +74,6 @@ if __name__ == '__main__':
                 # window_size=(1600, 1100),
 
                 # FakeHumanEnv config:
-                free_level=free_level,
                 image_observation=True, 
                 vehicle_config=dict(image_source="rgb_camera"),
                 sensors={"rgb_camera": (RGBCamera, *sensor_size)},
@@ -154,7 +153,7 @@ if __name__ == '__main__':
             sensors={"rgb_camera": (RGBCamera, *sensor_size)},
             stack_size=3,
         )
-        from pvp.experiments.metadrive.human_in_the_loop_env_old import HumanInTheLoopEnv
+        from pvp.experiments.metadrive.human_in_the_loop_env import HumanInTheLoopEnv
         from pvp.sb3.common.monitor import Monitor
         eval_env = HumanInTheLoopEnv(config=eval_env_config)
         eval_env = Monitor(env=eval_env, filename=str(trial_dir))
@@ -163,7 +162,7 @@ if __name__ == '__main__':
     if config["env_config"]["use_render"]:
         eval_env, eval_freq = None, -1
     else:
-        eval_env, eval_freq = SubprocVecEnv([_make_eval_env]), 1000
+        eval_env, eval_freq = SubprocVecEnv([_make_eval_env]), 500
     def _make_train_env():
         # ===== Setup the training environment =====
         train_env = FakeHumanEnv(config=config["env_config"], )
@@ -171,7 +170,7 @@ if __name__ == '__main__':
         # Store all shared control data to the files.
         train_env = SharedControlMonitor(env=train_env, folder=trial_dir / "data", prefix=trial_name)
         return train_env
-    train_env = SubprocVecEnv([_make_train_env])
+    train_env = _make_train_env()
     config["algo"]["env"] = train_env
     assert config["algo"]["env"] is not None
 
@@ -214,7 +213,7 @@ if __name__ == '__main__':
         # eval
         eval_env=eval_env,
         eval_freq=eval_freq,
-        n_eval_episodes=10,
+        n_eval_episodes=20,
         eval_log_path=str(trial_dir),
 
         # logging
