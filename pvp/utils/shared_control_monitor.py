@@ -12,6 +12,8 @@ class SharedControlMonitor(gym.Wrapper):
     """
     Store shared control data from multiple episodes.
     """
+    def set_model(self, model):
+        self.env.env.model = model
     def __init__(self, env: gym.Env, folder: str = 'recorded_data', prefix: str = 'data', save_freq: int = 1000):
         super(SharedControlMonitor, self).__init__(env)
         self.data = {

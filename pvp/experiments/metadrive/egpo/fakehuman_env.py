@@ -86,14 +86,16 @@ class FakeHumanEnv(HumanInTheLoopEnv):
     expert = None
     from collections import deque 
     drawn_points = []
-    
+    # def set_model(self, model):
+    #     self.model = model
     def __init__(self, config):
         super(FakeHumanEnv, self).__init__(config)
         if self.config["use_discrete"]:
             self._num_bins = 13
             self._grid = np.linspace(-1, 1, self._num_bins)
             self._actions = np.array(np.meshgrid(self._grid, self._grid)).T.reshape(-1, 2)
-
+        from metadrive.obs.state_obs import LidarStateObservation
+        self.lidar = LidarStateObservation(self.config)
     @property
     def action_space(self) -> gym.Space:
         if self.config["use_discrete"]:
@@ -172,13 +174,13 @@ class FakeHumanEnv(HumanInTheLoopEnv):
         if self.expert is None:
                 global _expert
                 self.expert = _expert
-        
-        last_obs, _ = self.expert.obs_to_tensor(self.last_obs)
+        lidar_o = self.lidar.observe(self.agent)
+        last_obs, _ = self.expert.obs_to_tensor(lidar_o)
         distribution = self.expert.get_distribution(last_obs)
         log_prob = distribution.log_prob(torch.from_numpy(actions).to(last_obs.device))
         action_prob = log_prob.exp().detach().cpu().numpy()
         action_prob = action_prob[0]
-        expert_action, _  = self.expert.predict(self.last_obs, deterministic=True)
+        expert_action, _  = self.expert.predict(lidar_o, deterministic=True)
         enoise = np.random.randn(2) * expert_noise_bound
         expert_action = np.clip(enoise + expert_action, self.action_space.low, self.action_space.high)
         

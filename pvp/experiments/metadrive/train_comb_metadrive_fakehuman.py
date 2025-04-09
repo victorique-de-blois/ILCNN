@@ -40,7 +40,7 @@ if __name__ == '__main__':
     parser.add_argument("--dpo_loss_weight", default=1.0, type=float)
     parser.add_argument("--alpha", default=0.1, type=float)
     parser.add_argument("--bias", default=0.5, type=float)
-    
+    parser.add_argument("--free_level", default=0.95, type=float)
     args = parser.parse_args()
 
     # ===== Set up some arguments =====
@@ -66,7 +66,10 @@ if __name__ == '__main__':
     os.makedirs(experiment_dir, exist_ok=True)
     os.makedirs(trial_dir, exist_ok=False)  # Avoid overwritting old experiment
     print(f"We start logging training data into {trial_dir}")
-
+    from metadrive.component.sensors.rgb_camera import RGBCamera
+    sensor_size = (42, 42)
+    from pvp.sb3.sac.our_features_extractor import OurFeaturesExtractorCNN as OurFeaturesExtractor
+    
     # ===== Setup the config =====
     config = dict(
 
@@ -85,6 +88,10 @@ if __name__ == '__main__':
             update_future_freq=args.update_future_freq,
             future_steps_preference=args.future_steps_preference,
             expert_noise=args.expert_noise,
+            image_observation=True, 
+            vehicle_config=dict(image_source="rgb_camera"),
+            sensors={"rgb_camera": (RGBCamera, *sensor_size)},
+            stack_size=3,
         ),
 
         # Algorithm config
@@ -104,7 +111,14 @@ if __name__ == '__main__':
             replay_buffer_kwargs=dict(
                 discard_reward=True,  # We run in reward-free manner!
             ),
-            policy_kwargs=dict(net_arch=[256, 256]),
+            policy_kwargs=dict(
+                    features_extractor_class=OurFeaturesExtractor,
+                    features_extractor_kwargs=dict(features_dim=275),
+                    share_features_extractor=False, 
+                    net_arch=[
+                        256,
+                    ]
+                ),
             env=None,
             learning_rate=1e-4,
             q_value_bound=1,
@@ -138,14 +152,6 @@ if __name__ == '__main__':
             map="COT",
             use_render=True
         )
-        
-    # ===== Setup the training environment =====
-    train_env = FakeHumanEnv(config=config["env_config"], )
-    train_env = Monitor(env=train_env, filename=str(trial_dir))
-    # Store all shared control data to the files.
-    train_env = SharedControlMonitor(env=train_env, folder=trial_dir / "data", prefix=trial_name)
-    config["algo"]["env"] = train_env
-    assert config["algo"]["env"] is not None
 
     # ===== Also build the eval env =====
     def _make_eval_env():
@@ -154,6 +160,10 @@ if __name__ == '__main__':
             manual_control=False,  # Allow receiving control signal from external device
             start_seed=1000,
             horizon=1500,
+            image_observation=True, 
+            vehicle_config=dict(image_source="rgb_camera"),
+            sensors={"rgb_camera": (RGBCamera, *sensor_size)},
+            stack_size=3,
         )
         from pvp.experiments.metadrive.human_in_the_loop_env import HumanInTheLoopEnv
         from pvp.sb3.common.monitor import Monitor
@@ -165,6 +175,17 @@ if __name__ == '__main__':
         eval_env, eval_freq = None, -1
     else:
         eval_env, eval_freq = SubprocVecEnv([_make_eval_env]), 150
+    
+    def _make_train_env():
+        # ===== Setup the training environment =====
+        train_env = FakeHumanEnv(config=config["env_config"], )
+        train_env = Monitor(env=train_env, filename=str(trial_dir))
+        # Store all shared control data to the files.
+        train_env = SharedControlMonitor(env=train_env, folder=trial_dir / "data", prefix=trial_name)
+        return train_env
+    train_env = SubprocVecEnv([_make_train_env])
+    config["algo"]["env"] = train_env
+    assert config["algo"]["env"] is not None
 
     # ===== Setup the callbacks =====
     save_freq = args.save_freq  # Number of steps per model checkpoint
@@ -193,11 +214,17 @@ if __name__ == '__main__':
         data, params, pytorch_variables = load_from_zip_file(ckpt, device=model.device, print_system_info=False)
         model.set_parameters(params, exact_match=True, device=model.device)
 
-    train_env.env.env.model = model
+    # train_env.env.env.model = model
+    import copy
+    model_copy = copy.copy(model)
+    model_copy.env = None
+    for remote in train_env.remotes:
+        remote.send(("set_model", model_copy))
+    # train_env.env_method("set_model", model)
     # ===== Launch training =====
     model.learn(
         # training
-        total_timesteps=50_000,
+        total_timesteps=500_000,
         callback=callbacks,
         reset_num_timesteps=True,
 
