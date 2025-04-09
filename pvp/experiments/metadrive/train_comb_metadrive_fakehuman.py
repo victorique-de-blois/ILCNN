@@ -7,7 +7,7 @@ from pvp.experiments.metadrive.egpo.fakehuman_env import FakeHumanEnv
 from pvp.pvp_td3 import COMB
 from pvp.sb3.common.callbacks import CallbackList, CheckpointCallback
 from pvp.sb3.common.monitor import Monitor
-from pvp.sb3.common.vec_env import SubprocVecEnv
+from pvp.sb3.common.vec_env import SubprocVecEnv, DummyVecEnv
 from pvp.sb3.common.wandb_callback import WandbCallback
 from pvp.sb3.haco import HACOReplayBuffer
 from pvp.sb3.td3.policies import TD3Policy
@@ -174,7 +174,7 @@ if __name__ == '__main__':
     if config["env_config"]["use_render"]:
         eval_env, eval_freq = None, -1
     else:
-        eval_env, eval_freq = SubprocVecEnv([_make_eval_env]), 150
+        eval_env, eval_freq = SubprocVecEnv([_make_eval_env]), 2000
     
     def _make_train_env():
         # ===== Setup the training environment =====
@@ -183,7 +183,7 @@ if __name__ == '__main__':
         # Store all shared control data to the files.
         train_env = SharedControlMonitor(env=train_env, folder=trial_dir / "data", prefix=trial_name)
         return train_env
-    train_env = SubprocVecEnv([_make_train_env])
+    train_env = DummyVecEnv([_make_train_env])
     config["algo"]["env"] = train_env
     assert config["algo"]["env"] is not None
 
@@ -214,10 +214,10 @@ if __name__ == '__main__':
         data, params, pytorch_variables = load_from_zip_file(ckpt, device=model.device, print_system_info=False)
         model.set_parameters(params, exact_match=True, device=model.device)
 
-    # train_env.env.env.model = model
-    
-    for remote in train_env.remotes:
-        remote.send(("set_model", model.policy, model.imagreplay_buffer))
+    train_env.envs[0].env.env.model = model
+    #TODO: ensure that haco replay buffer add works for subvecenv
+    # for remote in train_env.remotes:
+    #     remote.send(("set_model", model.policy, None))
     # train_env.env_method("set_model", model)
     # ===== Launch training =====
     model.learn(
