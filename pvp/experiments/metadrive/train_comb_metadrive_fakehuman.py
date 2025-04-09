@@ -229,7 +229,7 @@ if __name__ == '__main__':
         # eval
         eval_env=eval_env,
         eval_freq=eval_freq,
-        n_eval_episodes=50,
+        n_eval_episodes=20,
         eval_log_path=str(trial_dir),
 
         # logging
