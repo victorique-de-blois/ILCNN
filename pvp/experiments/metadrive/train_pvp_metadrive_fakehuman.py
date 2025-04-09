@@ -24,7 +24,7 @@ if __name__ == '__main__':
     parser.add_argument("--save_freq", default=500, type=int)
     parser.add_argument("--seed", default=0, type=int, help="The random seed.")
     parser.add_argument("--wandb", action="store_true", help="Set to True to upload stats to wandb.")
-    parser.add_argument("--wandb_project", type=str, default="PVP_CNN", help="The project name for wandb.")
+    parser.add_argument("--wandb_project", type=str, default="HinLoopPref", help="The project name for wandb.")
     parser.add_argument("--wandb_team", type=str, default="victorique", help="The team name for wandb.")
     parser.add_argument("--log_dir", type=str, default="/home/caihy/pvp", help="Folder to store the logs.")
     parser.add_argument("--free_level", type=float, default=0.95)
