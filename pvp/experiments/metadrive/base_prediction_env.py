@@ -204,8 +204,8 @@ class BasePredictionEnv(SafeMetaDriveEnv):
             action = action_behavior
             if action_behavior is None:
                 action = self.agent_action
-                if hasattr(self, "model"):
-                     action, _ = self.model.policy.predict(obs, deterministic=True)
+                if hasattr(self, "modelpolicy"):
+                     action, _ = self.modelpolicy.predict(obs, deterministic=True)
             
             if self.config["use_discrete"]:
                 action = self.discrete_to_continuous(action)

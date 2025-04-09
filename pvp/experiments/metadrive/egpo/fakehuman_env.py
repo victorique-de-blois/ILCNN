@@ -86,8 +86,6 @@ class FakeHumanEnv(HumanInTheLoopEnv):
     expert = None
     from collections import deque 
     drawn_points = []
-    # def set_model(self, model):
-    #     self.model = model
     def __init__(self, config):
         super(FakeHumanEnv, self).__init__(config)
         if self.config["use_discrete"]:
@@ -154,7 +152,7 @@ class FakeHumanEnv(HumanInTheLoopEnv):
             }
             positive_traj = [step_info].copy()
             negative_traj = predicted_traj[step+1:]
-            self.model.imagreplay_buffer.add(positive_traj, negative_traj)
+            self.modelimagreplay_buffer.add(positive_traj, negative_traj)
     
     def step(self, actions):
         """Compared to the original one, we call expert_action_prob here and implement a takeover function."""
@@ -194,7 +192,7 @@ class FakeHumanEnv(HumanInTheLoopEnv):
                 expert_action = self.continuous_to_discrete(expert_action)
                 expert_action = self.discrete_to_continuous(expert_action)
             actions = expert_action
-            if hasattr(self, "model") and hasattr(self.model, "imagreplay_buffer"):
+            if hasattr(self, "modelimagreplay_buffer"):
                 self.store_preference_pairs(predicted_traj, future_steps_preference, expert_action.copy())
             
         o, r, d, i = super(HumanInTheLoopEnv, self).step(actions)

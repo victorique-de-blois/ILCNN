@@ -67,7 +67,7 @@ if __name__ == '__main__':
     os.makedirs(trial_dir, exist_ok=False)  # Avoid overwritting old experiment
     print(f"We start logging training data into {trial_dir}")
     from metadrive.component.sensors.rgb_camera import RGBCamera
-    sensor_size = (42, 42)
+    sensor_size = (84, 84)
     from pvp.sb3.sac.our_features_extractor import OurFeaturesExtractorCNN as OurFeaturesExtractor
     
     # ===== Setup the config =====
@@ -215,11 +215,9 @@ if __name__ == '__main__':
         model.set_parameters(params, exact_match=True, device=model.device)
 
     # train_env.env.env.model = model
-    import copy
-    model_copy = copy.copy(model)
-    model_copy.env = None
+    
     for remote in train_env.remotes:
-        remote.send(("set_model", model_copy))
+        remote.send(("set_model", model.policy, model.imagreplay_buffer))
     # train_env.env_method("set_model", model)
     # ===== Launch training =====
     model.learn(
