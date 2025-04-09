@@ -28,7 +28,7 @@ if __name__ == '__main__':
     parser.add_argument("--wandb_team", type=str, default="victorique", help="The team name for wandb.")
     parser.add_argument("--log_dir", type=str, default="/home/caihy/pvp", help="Folder to store the logs.")
     parser.add_argument("--free_level", type=float, default=0.95)
-    parser.add_argument("--bc_loss_weight", type=float, default=0.0)
+    parser.add_argument("--bc_loss_weight", type=float, default=1.0)
     parser.add_argument("--with_human_proxy_value_loss", default="True", type=str)
     parser.add_argument("--with_agent_proxy_value_loss", default="True", type=str)
     parser.add_argument("--adaptive_batch_size", default="False", type=str)
@@ -163,7 +163,7 @@ if __name__ == '__main__':
     if config["env_config"]["use_render"]:
         eval_env, eval_freq = None, -1
     else:
-        eval_env, eval_freq = SubprocVecEnv([_make_eval_env] * 10), 1000
+        eval_env, eval_freq = SubprocVecEnv([_make_eval_env]), 1000
     def _make_train_env():
         # ===== Setup the training environment =====
         train_env = FakeHumanEnv(config=config["env_config"], )
