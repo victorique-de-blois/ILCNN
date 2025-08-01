@@ -21,18 +21,18 @@ if __name__ == '__main__':
     )
     parser.add_argument("--batch_size", default=1024, type=int)
     parser.add_argument("--learning_starts", default=10, type=int)
-    parser.add_argument("--save_freq", default=500, type=int)
+    parser.add_argument("--save_freq", default=2000, type=int)
     parser.add_argument("--seed", default=0, type=int, help="The random seed.")
     parser.add_argument("--wandb", action="store_true", help="Set to True to upload stats to wandb.")
-    parser.add_argument("--wandb_project", type=str, default="HinLoopPref", help="The project name for wandb.")
-    parser.add_argument("--wandb_team", type=str, default="victorique", help="The team name for wandb.")
-    parser.add_argument("--log_dir", type=str, default="/home/caihy/pvp", help="Folder to store the logs.")
+    parser.add_argument("--wandb_project", type=str, default="", help="The project name for wandb.")
+    parser.add_argument("--wandb_team", type=str, default="", help="The team name for wandb.")
+    parser.add_argument("--log_dir", type=str, default="", help="Folder to store the logs.")
     parser.add_argument("--free_level", type=float, default=0.95)
     parser.add_argument("--bc_loss_weight", type=float, default=1.0)
     parser.add_argument("--with_human_proxy_value_loss", default="True", type=str)
     parser.add_argument("--with_agent_proxy_value_loss", default="True", type=str)
     parser.add_argument("--adaptive_batch_size", default="False", type=str)
-    parser.add_argument("--only_bc_loss", default="False", type=str)
+    parser.add_argument("--only_bc_loss", default="True", type=str)
     parser.add_argument("--ckpt", default="", type=str)
     parser.add_argument("--simple_batch", default="True", type=str)
     parser.add_argument("--toy_env", action="store_true", help="Whether to use a toy environment.")
@@ -162,7 +162,7 @@ if __name__ == '__main__':
     if config["env_config"]["use_render"]:
         eval_env, eval_freq = None, -1
     else:
-        eval_env, eval_freq = SubprocVecEnv([_make_eval_env]), 500
+        eval_env, eval_freq = SubprocVecEnv([_make_eval_env]), 2000
     def _make_train_env():
         # ===== Setup the training environment =====
         train_env = FakeHumanEnv(config=config["env_config"], )

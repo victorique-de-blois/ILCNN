@@ -184,18 +184,19 @@ class FakeHumanEnv(HumanInTheLoopEnv):
         enoise = np.random.randn(2) * expert_noise_bound
         expert_action = np.clip(enoise + expert_action, self.action_space.low, self.action_space.high)
         
-        if (self.total_steps % update_future_freq == 0):
-            self.render_reset()
-            self.takeover = self.decide_takeover(self.last_obs, future_steps_predict)
+        # if (self.total_steps % update_future_freq == 0):
+        #     self.render_reset()
+        #     self.takeover = self.decide_takeover(self.last_obs, future_steps_predict)
+        self.takeover = True
 
         if self.takeover:
-            predicted_traj, info2 = self.predict_agent_future_trajectory(self.last_obs, future_steps_predict, action_behavior=self.agent_action.copy())
+            # predicted_traj, info2 = self.predict_agent_future_trajectory(self.last_obs, future_steps_predict, action_behavior=self.agent_action.copy())
             if self.config["use_discrete"]:
                 expert_action = self.continuous_to_discrete(expert_action)
                 expert_action = self.discrete_to_continuous(expert_action)
             actions = expert_action
-            if hasattr(self, "model") and hasattr(self.model, "imagreplay_buffer"):
-                self.store_preference_pairs(predicted_traj, future_steps_preference, expert_action.copy())
+            # if hasattr(self, "model") and hasattr(self.model, "imagreplay_buffer"):
+            #     self.store_preference_pairs(predicted_traj, future_steps_preference, expert_action.copy())
             
         o, r, d, i = super(HumanInTheLoopEnv, self).step(actions)
         
